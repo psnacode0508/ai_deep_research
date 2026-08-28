@@ -176,3 +176,106 @@ export async function deleteResearchSession(req: Request, res: Response): Promis
     res.status(500).json({ success: false, error: { code: "INTERNAL_ERROR", message: "Unexpected error" } });
   }
 }
+
+/**
+ * Streams real-time events for a research session.
+ * GET /api/v1/research/:id/events
+ */
+export async function streamResearchEvents(req: Request, res: Response): Promise<void> {
+  try {
+    const user = req.user;
+    const { id } = req.params;
+
+    if (!user) {
+      res.status(401).json({ success: false, error: { code: "UNAUTHORIZED", message: "User not authenticated" } });
+      return;
+    }
+
+    // Verify ownership
+    const { data: session, error: authError } = await supabaseAdmin
+      .from("research_sessions")
+      .select("id")
+      .eq("id", id)
+      .eq("user_id", user.id)
+      .single();
+
+    if (authError || !session) {
+      res.status(404).json({ success: false, error: { code: "NOT_FOUND", message: "Research session not found" } });
+      return;
+    }
+
+    // Fetch historical events to backfill the client
+    const { data: history } = await supabaseAdmin
+      .from("research_events")
+      .select("*")
+      .eq("session_id", id)
+      .order("created_at", { ascending: true });
+
+    // Setup SSE connection via eventService
+    const { eventService } = await import("../engine/events");
+    eventService.subscribe(id, res);
+
+    // Send historical events immediately
+    if (history && history.length > 0) {
+      for (const row of history) {
+        const eventData = {
+          type: row.event_type,
+          sessionId: row.session_id,
+          taskId: row.task_id,
+          message: row.message,
+          payload: row.payload,
+          timestamp: row.created_at
+        };
+        res.write(`data: ${JSON.stringify(eventData)}\n\n`);
+      }
+    }
+  } catch (error) {
+    console.error("[ResearchController] Error in SSE stream:", error);
+    if (!res.headersSent) {
+      res.status(500).json({ success: false, error: { code: "INTERNAL_ERROR", message: "Unexpected error" } });
+    } else {
+      res.end();
+    }
+  }
+}
+
+/**
+ * Cancels a research session.
+ * POST /api/v1/research/:id/cancel
+ */
+export async function cancelResearchSession(req: Request, res: Response): Promise<void> {
+  try {
+    const user = req.user;
+    const { id } = req.params;
+
+    if (!user) {
+      res.status(401).json({ success: false, error: { code: "UNAUTHORIZED", message: "User not authenticated" } });
+      return;
+    }
+
+    // Verify ownership
+    const { data: session, error: authError } = await supabaseAdmin
+      .from("research_sessions")
+      .select("id, status")
+      .eq("id", id)
+      .eq("user_id", user.id)
+      .single();
+
+    if (authError || !session) {
+      res.status(404).json({ success: false, error: { code: "NOT_FOUND", message: "Research session not found" } });
+      return;
+    }
+
+    if (session.status === ResearchStatus.Complete || session.status === ResearchStatus.Failed || session.status === ResearchStatus.Cancelled) {
+      res.status(400).json({ success: false, error: { code: "BAD_REQUEST", message: "Session cannot be cancelled in its current state" } });
+      return;
+    }
+
+    await ResearchEngine.cancelResearch(id);
+
+    res.status(200).json({ success: true, data: { cancelled: true } });
+  } catch (error) {
+    console.error("[ResearchController] Unexpected error cancelling:", error);
+    res.status(500).json({ success: false, error: { code: "INTERNAL_ERROR", message: "Unexpected error" } });
+  }
+}

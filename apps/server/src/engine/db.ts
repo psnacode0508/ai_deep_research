@@ -1,5 +1,6 @@
 import { supabaseAdmin } from "../db/supabase";
-import { ResearchStatus } from "@deepresearch/shared";
+import { ResearchStatus, ResearchEventType } from "@deepresearch/shared";
+import { eventService } from "./events";
 
 /**
  * Update the status of a research session.
@@ -14,6 +15,22 @@ export async function updateSessionStatus(sessionId: string, status: ResearchSta
     .eq("id", sessionId);
     
   if (dbError) throw new Error(`Failed to update session status: ${dbError.message}`);
+  
+  // Map ResearchStatus to EventType
+  const statusToEventMap: Record<string, ResearchEventType> = {
+    [ResearchStatus.Pending]: "session.created",
+    [ResearchStatus.Planning]: "planning.started",
+    [ResearchStatus.Researching]: "task.started", // Broadly
+    [ResearchStatus.Evaluating]: "evaluation.started",
+    [ResearchStatus.Reflecting]: "reflection.started",
+    [ResearchStatus.Synthesising]: "synthesis.started",
+    [ResearchStatus.Complete]: "session.completed",
+    [ResearchStatus.Failed]: "session.failed",
+    [ResearchStatus.Cancelled]: "session.failed",
+  };
+  
+  const eventType = statusToEventMap[status] || "session.status_changed";
+  await recordEvent(sessionId, eventType, `Session status changed to ${status}`, undefined, { status, error });
 }
 
 /**
@@ -49,6 +66,8 @@ export async function saveResearchPlan(sessionId: string, tasks: any[]) {
     
   if (tasksError) throw new Error(`Failed to save tasks: ${tasksError.message}`);
   
+  await recordEvent(sessionId, "planning.completed", `Generated research plan with ${tasks.length} tasks`, undefined, { taskCount: tasks.length });
+  
   return { plan, tasks: savedTasks };
 }
 
@@ -74,6 +93,21 @@ export async function updateTaskStatus(taskId: string, status: string, errorMsg?
     .from("research_tasks")
     .update(payload)
     .eq("id", taskId);
+    
+  let eventType: ResearchEventType | null = null;
+  if (status === 'complete') eventType = 'task.completed';
+  else if (status === 'failed') eventType = 'task.failed';
+  else if (status === 'researching') eventType = 'task.started';
+  
+  if (eventType) {
+    // We need sessionId for events, we can look it up but better to pass it in. 
+    // To avoid changing signature everywhere, we will skip emitting task status events here 
+    // unless we look up the session_id.
+    const { data } = await supabaseAdmin.from("research_tasks").select("session_id").eq("id", taskId).single();
+    if (data) {
+      await recordEvent(data.session_id, eventType, `Task ${status}`, taskId, { error: errorMsg });
+    }
+  }
 }
 
 export async function saveSource(taskId: string, sessionId: string, source: any) {
@@ -93,6 +127,9 @@ export async function saveSource(taskId: string, sessionId: string, source: any)
     .single();
     
   if (error) throw new Error(`Failed to save source: ${error.message}`);
+  
+  await recordEvent(sessionId, "task.source_found", `Found source: ${source.title || source.domain}`, taskId, { url: source.url });
+  
   return data;
 }
 
@@ -110,6 +147,9 @@ export async function saveEvidence(taskId: string, sessionId: string, sourceId: 
     .single();
     
   if (error) throw new Error(`Failed to save evidence: ${error.message}`);
+  
+  await recordEvent(sessionId, "task.evidence_extracted", "Extracted evidence from source", taskId, { sourceId, relevance });
+  
   return data;
 }
 
@@ -158,6 +198,8 @@ export async function saveSessionReport(sessionId: string, report: string) {
     .eq("id", sessionId);
     
   if (error) throw new Error(`Failed to save report: ${error.message}`);
+  
+  await recordEvent(sessionId, "synthesis.completed", "Final report generated");
 }
 
 export async function saveContradiction(sessionId: string, claimAId: string, claimBId: string, description: string, severity: string) {
@@ -174,6 +216,9 @@ export async function saveContradiction(sessionId: string, claimAId: string, cla
     .single();
     
   if (error) throw new Error(`Failed to save contradiction: ${error.message}`);
+  
+  await recordEvent(sessionId, "evaluation.contradiction_detected", `Detected a ${severity} contradiction`);
+  
   return data;
 }
 
@@ -202,5 +247,35 @@ export async function saveFollowUpTasks(sessionId: string, queries: string[]) {
     .select();
     
   if (error) throw new Error(`Failed to save follow-up tasks: ${error.message}`);
+  
+  await recordEvent(sessionId, "reflection.gap_identified", `Created ${queries.length} follow-up tasks`);
+  
   return data;
+}
+
+export async function recordEvent(sessionId: string, eventType: ResearchEventType, message: string, taskId?: string, payload?: any) {
+  const event = {
+    session_id: sessionId,
+    event_type: eventType,
+    message,
+    task_id: taskId || null,
+    payload: payload || null,
+  };
+  
+  const { data, error } = await supabaseAdmin
+    .from("research_events")
+    .insert(event)
+    .select()
+    .single();
+    
+  if (!error && data) {
+    eventService.emit({
+      type: eventType,
+      sessionId,
+      taskId,
+      message,
+      payload,
+      timestamp: data.created_at
+    });
+  }
 }

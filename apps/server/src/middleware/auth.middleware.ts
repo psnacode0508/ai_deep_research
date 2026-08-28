@@ -29,13 +29,18 @@ export async function requireAuth(
   next: NextFunction
 ): Promise<void> {
   try {
+    let token = "";
     const authHeader = req.headers.authorization;
 
-    if (!authHeader || !authHeader.startsWith("Bearer ")) {
-      throw new ApiError(401, "Missing or malformed Authorization header", "MISSING_TOKEN");
+    if (authHeader && authHeader.startsWith("Bearer ")) {
+      token = authHeader.slice(7);
+    } else if (req.query.token && typeof req.query.token === "string") {
+      token = req.query.token;
     }
 
-    const token = authHeader.slice(7); // Remove "Bearer "
+    if (!token) {
+      throw new ApiError(401, "Missing or malformed Authorization token", "MISSING_TOKEN");
+    }
 
     // Verify the JWT against Supabase — this also handles token expiry
     const { data, error } = await supabaseAdmin.auth.getUser(token);

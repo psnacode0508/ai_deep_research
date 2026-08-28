@@ -1,12 +1,12 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { ArrowLeft, Clock, Settings, Brain, Search, XCircle, Play, ListTodo } from "lucide-react";
+import { ArrowLeft, Clock, Settings, Brain, Search, XCircle, Play, ListTodo, StopCircle } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import Spinner from "@/components/ui/Spinner";
 import { supabase } from "@/lib/supabase";
-import { ResearchSession, ResearchStatus } from "@deepresearch/shared";
+import { ResearchSession, ResearchStatus, ResearchEvent } from "@deepresearch/shared";
 
 const API_URL = import.meta.env.VITE_API_URL || "http://localhost:4000";
 
@@ -17,6 +17,10 @@ function ResearchWorkspacePage(): React.JSX.Element {
   const [session, setSession] = useState<ResearchSession | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [events, setEvents] = useState<ResearchEvent[]>([]);
+  const [connectionStatus, setConnectionStatus] = useState<"connecting" | "connected" | "reconnecting" | "disconnected">("connecting");
+  const eventSourceRef = useRef<EventSource | null>(null);
+  const reconnectTimeout = useRef<NodeJS.Timeout | undefined>(undefined);
 
   const fetchSession = async () => {
     try {
@@ -35,18 +39,98 @@ function ResearchWorkspacePage(): React.JSX.Element {
       }
 
       setSession(data.data);
+      return authSession.access_token;
     } catch (err: any) {
       setError(err.message || "Failed to load session");
-    } finally {
       setLoading(false);
+      return null;
     }
+  };
+
+  const connectSSE = (token: string) => {
+    if (eventSourceRef.current) {
+      eventSourceRef.current.close();
+    }
+    
+    setConnectionStatus(prev => prev === "disconnected" ? "reconnecting" : "connecting");
+    const es = new EventSource(`${API_URL}/api/v1/research/${id}/events?token=${token}`);
+    eventSourceRef.current = es;
+
+    es.onopen = () => {
+      setConnectionStatus("connected");
+    };
+
+    es.onmessage = (e) => {
+      try {
+        const data = JSON.parse(e.data) as ResearchEvent;
+        setEvents(prev => {
+          // Prevent duplicates if backend resends history
+          if (prev.some(ev => ev.timestamp === data.timestamp && ev.type === data.type)) return prev;
+          return [...prev, data];
+        });
+        
+        // Auto-update session status if it's a status event
+        if (data.type === "session.status_changed" || data.type === "session.completed" || data.type === "session.failed") {
+          setSession(s => s ? { ...s, status: (data.payload as any)?.status || (data.type === "session.completed" ? ResearchStatus.Complete : ResearchStatus.Failed) } : s);
+        }
+      } catch (err) {
+        console.error("Failed to parse SSE message", err);
+      }
+    };
+
+    es.onerror = (err) => {
+      console.error("SSE Error:", err);
+      es.close();
+      setConnectionStatus("disconnected");
+      // Basic reconnect backoff
+      reconnectTimeout.current = setTimeout(() => {
+        if (session && session.status !== ResearchStatus.Complete && session.status !== ResearchStatus.Failed && session.status !== ResearchStatus.Cancelled) {
+          connectSSE(token);
+        }
+      }, 5000);
+    };
   };
 
   useEffect(() => {
     if (id) {
-      fetchSession();
+      fetchSession().then(token => {
+        if (token) {
+          setLoading(false);
+          connectSSE(token);
+        }
+      });
     }
+
+    return () => {
+      if (eventSourceRef.current) {
+        eventSourceRef.current.close();
+      }
+      if (reconnectTimeout.current) {
+        clearTimeout(reconnectTimeout.current);
+      }
+    };
   }, [id]);
+
+  const handleCancel = async () => {
+    try {
+      const { data: { session: authSession } } = await supabase.auth.getSession();
+      if (!authSession) return;
+
+      const res = await fetch(`${API_URL}/api/v1/research/${id}/cancel`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${authSession.access_token}`,
+        },
+      });
+
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setSession(s => s ? { ...s, status: ResearchStatus.Cancelled } : s);
+      }
+    } catch (err) {
+      console.error("Failed to cancel", err);
+    }
+  };
 
   if (loading) {
     return (
@@ -94,6 +178,13 @@ function ResearchWorkspacePage(): React.JSX.Element {
         return <Badge variant="outline">{status}</Badge>;
     }
   };
+  
+  // Calculate stats from events
+  const iterationCount = new Set(events.filter(e => e.type === 'reflection.completed').map(e => e.timestamp)).size;
+  const sourcesCount = events.filter(e => e.type === 'task.source_found').length;
+  const evidenceCount = events.filter(e => e.type === 'task.evidence_extracted').length;
+  const gapsCount = events.filter(e => e.type === 'reflection.gap_identified').reduce((sum, e) => sum + ((e.payload as any)?.queries?.length || 1), 0);
+  const contradictionsCount = events.filter(e => e.type === 'evaluation.contradiction_detected').length;
 
   return (
     <div className="flex flex-col h-full overflow-hidden">
@@ -110,6 +201,10 @@ function ResearchWorkspacePage(): React.JSX.Element {
             </h1>
           </div>
           {getStatusBadge(session.status)}
+          
+          <Badge variant="outline" className={`ml-2 ${connectionStatus === 'connected' ? 'text-green-400 border-green-500/20 bg-green-500/10' : 'text-yellow-400 border-yellow-500/20 bg-yellow-500/10'}`}>
+             {connectionStatus}
+          </Badge>
         </div>
         
         <div className="flex items-center gap-3">
@@ -118,8 +213,8 @@ function ResearchWorkspacePage(): React.JSX.Element {
             Config
           </Button>
           {(session.status !== ResearchStatus.Complete && session.status !== ResearchStatus.Failed && session.status !== ResearchStatus.Cancelled) && (
-            <Button variant="destructive" size="sm" className="h-8 text-xs">
-              Cancel Engine
+            <Button variant="destructive" size="sm" className="h-8 text-xs" onClick={handleCancel}>
+              <StopCircle size={14} className="mr-2"/> Cancel Engine
             </Button>
           )}
         </div>
@@ -141,9 +236,9 @@ function ResearchWorkspacePage(): React.JSX.Element {
               <CardContent className="flex-1 overflow-y-auto p-4">
                 {session.tasks && session.tasks.length > 0 ? (
                   <div className="space-y-4">
-                    {session.tasks.map((task: any, i: number) => (
+                    {session.tasks.map((task: any) => (
                       <div key={task.id} className="p-3 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface-2)]">
-                        <div className="text-xs font-mono text-[var(--color-muted)] mb-1">Task {i+1}</div>
+                        <div className="text-xs font-mono text-[var(--color-muted)] mb-1">Task {task.task_index + 1} {task.is_followup && "(Follow-up)"}</div>
                         <div className="text-sm text-white font-medium mb-2">{task.query}</div>
                         <Badge variant={task.status === 'complete' ? 'success' : 'secondary'} className="text-[10px] px-1.5 py-0">
                           {task.status}
@@ -170,24 +265,32 @@ function ResearchWorkspacePage(): React.JSX.Element {
                   Engine Activity
                 </CardTitle>
                 <div className="flex items-center gap-4 text-xs font-mono text-[var(--color-muted)]">
-                  <span className="flex items-center gap-1.5"><Clock size={14}/> 00:00:00</span>
-                  <span className="flex items-center gap-1.5"><Play size={14} className="text-brand-400"/> Iteration 0/{session.metadata.maxIterations}</span>
+                  <span className="flex items-center gap-1.5"><Clock size={14}/> Live Feed</span>
+                  <span className="flex items-center gap-1.5"><Play size={14} className="text-brand-400"/> Iteration {iterationCount}/{session.metadata.maxIterations}</span>
                 </div>
               </CardHeader>
-              <CardContent className="flex-1 overflow-y-auto p-6 font-mono text-xs text-[var(--color-muted)]">
-                {session.status === ResearchStatus.Pending ? (
+              <CardContent className="flex-1 overflow-y-auto p-6 font-mono text-xs text-[var(--color-muted)] flex flex-col gap-3">
+                {events.length === 0 ? (
                   <div className="text-center mt-10">
                     <p className="text-sm mb-2 text-white">Engine is ready to start.</p>
-                    <p>In Milestone 4, engine execution is disabled.</p>
+                    <p>Connecting to stream...</p>
                   </div>
                 ) : (
-                  <div className="space-y-4">
-                    {/* Placeholder event stream */}
-                    <div className="flex gap-4">
-                      <span className="text-brand-400 shrink-0">10:00:01</span>
-                      <span className="text-white">Session initialized.</span>
+                  events.map((ev, i) => (
+                    <div key={i} className="flex gap-4 border-b border-white/5 pb-2">
+                      <span className="text-brand-400 shrink-0">
+                         {new Date(ev.timestamp).toLocaleTimeString()}
+                      </span>
+                      <div className="flex-1">
+                        <span className="text-white font-medium block mb-1">{ev.message}</span>
+                        {!!ev.payload && (
+                          <div className="text-[10px] opacity-70 bg-black/40 p-2 rounded">
+                             {JSON.stringify(ev.payload)}
+                          </div>
+                        )}
+                      </div>
                     </div>
-                  </div>
+                  ))
                 )}
               </CardContent>
             </Card>
@@ -199,12 +302,37 @@ function ResearchWorkspacePage(): React.JSX.Element {
               <CardHeader className="py-4 border-b border-white/5 shrink-0">
                 <CardTitle className="text-sm flex items-center gap-2">
                   <Search size={16} className="text-[var(--color-muted)]" />
-                  Sources & Evidence
+                  Live Stats
                 </CardTitle>
               </CardHeader>
-              <CardContent className="flex-1 overflow-y-auto p-4 flex flex-col items-center justify-center opacity-50 text-center">
-                 <Search size={24} className="mb-2" />
-                 <p className="text-xs">No sources retrieved yet.</p>
+              <CardContent className="flex-1 p-4 flex flex-col gap-4">
+                  <div className="grid grid-cols-2 gap-4">
+                     <div className="bg-[var(--color-surface-2)] p-4 rounded-lg border border-[var(--color-border)] text-center">
+                        <div className="text-2xl font-bold text-brand-400">{sourcesCount}</div>
+                        <div className="text-xs text-[var(--color-muted)]">Sources Found</div>
+                     </div>
+                     <div className="bg-[var(--color-surface-2)] p-4 rounded-lg border border-[var(--color-border)] text-center">
+                        <div className="text-2xl font-bold text-brand-400">{evidenceCount}</div>
+                        <div className="text-xs text-[var(--color-muted)]">Claims Extracted</div>
+                     </div>
+                     <div className="bg-[var(--color-surface-2)] p-4 rounded-lg border border-[var(--color-border)] text-center">
+                        <div className="text-2xl font-bold text-yellow-400">{contradictionsCount}</div>
+                        <div className="text-xs text-[var(--color-muted)]">Contradictions</div>
+                     </div>
+                     <div className="bg-[var(--color-surface-2)] p-4 rounded-lg border border-[var(--color-border)] text-center">
+                        <div className="text-2xl font-bold text-orange-400">{gapsCount}</div>
+                        <div className="text-xs text-[var(--color-muted)]">Gaps Identified</div>
+                     </div>
+                  </div>
+                  
+                  {session.status === ResearchStatus.Complete && session.report && (
+                    <div className="mt-4 flex flex-col items-center justify-center p-4 bg-green-500/10 border border-green-500/20 rounded-lg">
+                       <span className="text-green-400 font-medium text-sm mb-2">Report Ready</span>
+                       <Button size="sm" onClick={() => alert("Preview report here (UI to be built)")}>
+                          View Report
+                       </Button>
+                    </div>
+                  )}
               </CardContent>
             </Card>
           </div>

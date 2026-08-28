@@ -1,8 +1,10 @@
-feat: add reflective iterative research
+feat: add real-time research streaming
 
-- Implemented `reflect_on_evidence` LangGraph node using Gemini structured output.
-- The reflection node evaluates existing claims for sufficiency, detects contradictions, and identifies research gaps.
-- Added iterative loop routing: if evidence is insufficient and iteration limit is not reached, follow-up search tasks are generated and passed to the `execute_search` node.
-- Updated `db.ts` to persist detected contradictions and new follow-up tasks to the database (`contradictions` and `research_tasks` tables respectively).
-- Updated `synthesize_report` node to explicitly include detected contradictions and unresolved gaps in the final markdown report.
-- Added comprehensive mocked vitest coverage for the reflection and iteration routing logic.
+- Created in-memory EventService (`apps/server/src/engine/events.ts`) for SSE broadcasting.
+- Updated Auth middleware to support JWT tokens via `?token=` query parameter for native EventSource compatibility.
+- Added `recordEvent` to `engine/db.ts` to persist `research_events` and emit them to connected SSE clients.
+- Intercepted lifecycle methods in `db.ts` to emit real state-driven events (planning, searching, extracting, gaps, contradictions, etc).
+- Implemented `GET /api/v1/research/:id/events` to backfill history and attach the client to the stream.
+- Implemented `POST /api/v1/research/:id/cancel` to cancel active sessions.
+- Redesigned `ResearchWorkspacePage.tsx` to consume SSE natively, maintain an event log, update task states iteratively, compute live statistics (sources, claims, gaps, contradictions), and handle resilient reconnection logic.
+- Implemented and passed mocked backend event service tests.
