@@ -1,0 +1,14 @@
+# Compiled output
+dist/
+
+# Environment variables — never commit
+.env
+.env.local
+.env.*
+
+# Logs
+*.log
+
+# Runtime
+node_modules/
+*.local
