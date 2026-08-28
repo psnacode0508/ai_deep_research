@@ -159,3 +159,48 @@ export async function saveSessionReport(sessionId: string, report: string) {
     
   if (error) throw new Error(`Failed to save report: ${error.message}`);
 }
+
+export async function saveContradiction(sessionId: string, claimAId: string, claimBId: string, description: string, severity: string) {
+  const { data, error } = await supabaseAdmin
+    .from("contradictions")
+    .insert({
+      session_id: sessionId,
+      claim_a_id: claimAId,
+      claim_b_id: claimBId,
+      description,
+      severity
+    })
+    .select()
+    .single();
+    
+  if (error) throw new Error(`Failed to save contradiction: ${error.message}`);
+  return data;
+}
+
+export async function saveFollowUpTasks(sessionId: string, queries: string[]) {
+  // First, get the plan ID for this session
+  const { data: plan, error: planError } = await supabaseAdmin
+    .from("research_plans")
+    .select("id")
+    .eq("session_id", sessionId)
+    .single();
+    
+  if (planError || !plan) throw new Error(`Failed to find plan for follow-up: ${planError?.message}`);
+  
+  const taskRows = queries.map((query, i) => ({
+    session_id: sessionId,
+    plan_id: plan.id,
+    query,
+    task_index: 100 + i, // Arbitrary high index for follow-ups
+    status: 'pending',
+    is_followup: true
+  }));
+  
+  const { data, error } = await supabaseAdmin
+    .from("research_tasks")
+    .insert(taskRows)
+    .select();
+    
+  if (error) throw new Error(`Failed to save follow-up tasks: ${error.message}`);
+  return data;
+}

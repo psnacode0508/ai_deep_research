@@ -26,6 +26,10 @@ export interface ResearchState {
   claims: any[];
   report: string | null;
   error?: string;
+  iteration: number;
+  gaps: any[];
+  contradictions: any[];
+  isSufficient: boolean;
 }
 
 const stateChannels = {
@@ -38,6 +42,10 @@ const stateChannels = {
   claims: { value: (x: any[], y: any[]) => x.concat(y || []), default: () => [] },
   report: { value: (x: string | null, y: string | null) => y ?? x, default: () => null },
   error: { value: (x: string | undefined, y: string | undefined) => y ?? x, default: () => undefined },
+  iteration: { value: (x: number, y: number) => (y !== undefined ? y : x), default: () => 0 },
+  gaps: { value: (x: any[], y: any[]) => x.concat(y || []), default: () => [] },
+  contradictions: { value: (x: any[], y: any[]) => x.concat(y || []), default: () => [] },
+  isSufficient: { value: (x: boolean, y: boolean) => (y !== undefined ? y : x), default: () => false },
 };
 
 /**
@@ -80,6 +88,10 @@ async function executeSearch(state: ResearchState) {
   try {
     await db.updateSessionStatus(state.sessionId, ResearchStatus.Researching);
     const pendingTasks = await db.getSessionTasks(state.sessionId);
+    
+    if (pendingTasks.length === 0) {
+      return { sources: [] }; // No tasks to run
+    }
     
     const allSources = [];
     
@@ -176,6 +188,92 @@ Only extract information explicitly stated in the text.`;
 }
 
 /**
+ * 3.5 Reflection Node (M6)
+ */
+async function reflectOnEvidence(state: ResearchState) {
+  try {
+    await db.updateSessionStatus(state.sessionId, ResearchStatus.Reflecting);
+    
+    const allClaims = await db.getSessionClaims(state.sessionId);
+    if (!allClaims || allClaims.length === 0) {
+      return {
+        isSufficient: false,
+        gaps: [{ description: "No claims extracted yet", suggestedQuery: state.question, priority: "high", reason: "Zero evidence" }]
+      };
+    }
+    
+    let claimsText = allClaims.map((c: any, i: number) => `[ID:${c.id}] ${c.content}`).join("\n");
+    
+    const reflectionSchema = z.object({
+      coverage_assessment: z.string().describe("Overall assessment of current evidence against the research question"),
+      missing_evidence: z.array(z.string()).describe("List of missing crucial information"),
+      weak_claims: z.array(z.string()).describe("Claims that lack strong support"),
+      is_sufficient: z.boolean().describe("True if the evidence is sufficient to generate a final report"),
+      gaps: z.array(z.object({
+        description: z.string(),
+        priority: z.enum(["low", "medium", "high"]),
+        suggested_query: z.string().describe("The search query to fill this gap"),
+        reason: z.string()
+      })),
+      contradictions: z.array(z.object({
+        claimA_id: z.string(),
+        claimB_id: z.string(),
+        description: z.string().describe("Why these claims contradict"),
+        severity: z.enum(["minor", "major", "critical"])
+      }))
+    });
+    
+    const structuredLlm = llm.withStructuredOutput(reflectionSchema, { name: "Reflection" });
+    
+    const prompt = `You are a critical research evaluator. Analyze the current evidence against the research question: "${state.question}".
+    
+Extracted Claims:
+${claimsText}
+
+1. Identify if the evidence is sufficient to answer the question comprehensively.
+2. Identify any explicit gaps and suggest targeted follow-up search queries.
+3. Identify any direct contradictions between the claims (use their ID exactly as provided). Remember that differences in date, region, or context are not necessarily contradictions unless they claim the same exact fact for the same context.`;
+
+    const result = await structuredLlm.invoke(prompt);
+    
+    // Save contradictions
+    const savedContradictions = [];
+    if (result.contradictions) {
+      for (const c of result.contradictions) {
+        // Find if claim IDs exist to avoid foreign key errors in case LLM hallucinates IDs
+        if (allClaims.find((x:any) => x.id === c.claimA_id) && allClaims.find((x:any) => x.id === c.claimB_id)) {
+           const sc = await db.saveContradiction(state.sessionId, c.claimA_id, c.claimB_id, c.description, c.severity);
+           savedContradictions.push(sc);
+        }
+      }
+    }
+    
+    const newIteration = state.iteration + 1;
+    
+    // If not sufficient and within limits, schedule follow-ups
+    const maxIterations = state.metadata.maxIterations || 3;
+    let isActuallySufficient = result.is_sufficient;
+    
+    if (!isActuallySufficient && newIteration < maxIterations && result.gaps.length > 0) {
+      const queries = result.gaps.map(g => g.suggested_query).slice(0, 3); // Max 3 follow-ups
+      await db.saveFollowUpTasks(state.sessionId, queries);
+    } else if (newIteration >= maxIterations) {
+      isActuallySufficient = true; // Force completion
+    }
+    
+    return { 
+      isSufficient: isActuallySufficient,
+      iteration: newIteration,
+      gaps: result.gaps,
+      contradictions: savedContradictions
+    };
+    
+  } catch (error: any) {
+    return { error: `Reflection failed: ${error.message}` };
+  }
+}
+
+/**
  * 4. Synthesis Node
  */
 async function synthesizeReport(state: ResearchState) {
@@ -189,13 +287,32 @@ async function synthesizeReport(state: ResearchState) {
     
     let claimsText = allClaims.map((c: any, i: number) => `[${i+1}] ${c.content} (Source: ${c.source?.url})`).join("\n");
     
+    const contradictionsText = state.contradictions.length > 0 
+      ? state.contradictions.map((c, i) => `- ${c.description} (Severity: ${c.severity})`).join("\n") 
+      : "None detected.";
+      
+    const gapsText = state.gaps.length > 0
+      ? state.gaps.map((g, i) => `- ${g.description}`).join("\n")
+      : "None detected.";
+    
     const prompt = `You are an expert analyst. Write a concise, comprehensive research report answering the question: "${state.question}".
     
 You MUST ONLY use the following established claims. Cite your sources inline using [Number] format corresponding to the claim index.
 Do not invent or hallucinate information.
 
+Your report MUST include these sections if applicable:
+- Established Findings
+- Conflicting Evidence (discuss the contradictions below)
+- Unresolved Questions (discuss the gaps below)
+
 Claims:
 ${claimsText}
+
+Detected Contradictions:
+${contradictionsText}
+
+Unresolved Gaps:
+${gapsText}
 
 Output the report in Markdown format.`;
 
@@ -240,7 +357,16 @@ function shouldContinueFromSearch(state: ResearchState) {
 
 function shouldContinueFromExtract(state: ResearchState) {
   if (state.error) return "fail";
-  return "synthesize_report";
+  return "reflect_on_evidence";
+}
+
+function shouldContinueFromReflect(state: ResearchState) {
+  if (state.error) return "fail";
+  const maxIterations = state.metadata.maxIterations || 3;
+  if (state.isSufficient || state.iteration >= maxIterations) {
+    return "synthesize_report";
+  }
+  return "execute_search";
 }
 
 function shouldContinueFromSynthesis(state: ResearchState) {
@@ -253,6 +379,7 @@ const workflow = new StateGraph<ResearchState>({ channels: stateChannels })
   .addNode("plan_research", planResearch)
   .addNode("execute_search", executeSearch)
   .addNode("extract_evidence", extractEvidence)
+  .addNode("reflect_on_evidence", reflectOnEvidence)
   .addNode("synthesize_report", synthesizeReport)
   .addNode("finalize_session", finalizeSession)
   .addNode("fail", async (state: ResearchState) => {
@@ -272,6 +399,11 @@ workflow.addConditionalEdges("execute_search", shouldContinueFromSearch, {
 });
 workflow.addConditionalEdges("extract_evidence", shouldContinueFromExtract, {
   fail: "fail",
+  reflect_on_evidence: "reflect_on_evidence"
+});
+workflow.addConditionalEdges("reflect_on_evidence", shouldContinueFromReflect, {
+  fail: "fail",
+  execute_search: "execute_search",
   synthesize_report: "synthesize_report"
 });
 workflow.addConditionalEdges("synthesize_report", shouldContinueFromSynthesis, {

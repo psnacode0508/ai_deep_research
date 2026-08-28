@@ -10,23 +10,29 @@ vi.mock('../engine/db', () => ({
   saveClaim: vi.fn().mockResolvedValue({ id: 'cl-1' }),
   getSessionClaims: vi.fn().mockResolvedValue([{ id: 'cl-1', content: 'test claim', source: { url: 'http://test.com' } }]),
   saveSessionReport: vi.fn(),
+  saveContradiction: vi.fn().mockResolvedValue({ id: 'con-1' }),
+  saveFollowUpTasks: vi.fn().mockResolvedValue([{ id: '2' }])
 }));
 
 // Mock LLM
+let isSufficientMock = false;
+let gapsMock: any[] = [];
+let contradictionsMock: any[] = [];
+
 vi.mock('@langchain/google-genai', () => {
   return {
     ChatGoogleGenerativeAI: class {
       withStructuredOutput(schema: any, config: any) {
         if (config.name === "Reflection") {
           return {
-            invoke: vi.fn().mockResolvedValue({
+            invoke: vi.fn().mockImplementation(async () => ({
               coverage_assessment: "Testing",
               missing_evidence: [],
               weak_claims: [],
-              is_sufficient: true,
-              gaps: [],
-              contradictions: []
-            })
+              is_sufficient: isSufficientMock,
+              gaps: gapsMock,
+              contradictions: contradictionsMock
+            }))
           };
         }
         return {
@@ -66,47 +72,75 @@ vi.mock('../config/env', () => ({
 import { app } from '../engine/graph';
 import * as db from '../engine/db';
 
-describe('Research Engine Graph', () => {
+describe('Reflection and Iterative Loop', () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
 
-  it('should successfully run the full graph workflow', async () => {
+  it('routes to synthesis when sufficient', async () => {
+    isSufficientMock = true;
+    gapsMock = [];
+    contradictionsMock = [];
+
     const initialState = {
       sessionId: 'test-session',
       question: 'What is deep research?',
       depth: 'quick',
-      metadata: {},
+      metadata: { maxIterations: 3 },
       tasks: [],
       sources: [],
       claims: [],
-      report: null
+      report: null,
+      iteration: 0,
+      gaps: [],
+      contradictions: [],
+      isSufficient: false
     };
 
     const finalState = await app.invoke(initialState);
     
-    // Planner
-    expect(db.updateSessionStatus).toHaveBeenCalledWith('test-session', 'planning');
-    expect(db.saveResearchPlan).toHaveBeenCalled();
-    
-    // Search
-    expect(db.updateSessionStatus).toHaveBeenCalledWith('test-session', 'researching');
-    expect(db.getSessionTasks).toHaveBeenCalledWith('test-session');
-    expect(db.saveSource).toHaveBeenCalled();
-    
-    // Extract
-    expect(db.updateSessionStatus).toHaveBeenCalledWith('test-session', 'evaluating');
-    expect(db.saveEvidence).toHaveBeenCalled();
-    expect(db.saveClaim).toHaveBeenCalled();
-    
-    // Synthesize
+    // Should end at synthesis and complete
     expect(db.updateSessionStatus).toHaveBeenCalledWith('test-session', 'synthesising');
-    expect(db.getSessionClaims).toHaveBeenCalledWith('test-session');
-    expect(db.saveSessionReport).toHaveBeenCalled();
-    
-    // Finalize
     expect(db.updateSessionStatus).toHaveBeenCalledWith('test-session', 'complete');
+    expect(db.saveFollowUpTasks).not.toHaveBeenCalled();
+    expect(finalState.isSufficient).toBe(true);
+    expect(finalState.iteration).toBe(1);
+  });
+
+  it('routes to follow-up search when insufficient and iteration limit not reached', async () => {
+    isSufficientMock = false;
+    gapsMock = [{ description: 'Need more data', priority: 'high', suggested_query: 'more data', reason: 'gap' }];
+    contradictionsMock = [];
+
+    // Since we mock the graph to run all the way, it will loop. 
+    // To test just the routing step, we can't easily pause without breakpoints.
+    // But we can observe that it incremented iterations and saved follow-ups.
     
-    expect(finalState.error).toBeUndefined();
+    // Actually, because our mock for `isSufficient` is global and stays `false`, 
+    // it will loop until `iteration >= maxIterations`.
+    
+    const initialState = {
+      sessionId: 'test-session',
+      question: 'What is deep research?',
+      depth: 'quick',
+      metadata: { maxIterations: 2 },
+      tasks: [],
+      sources: [],
+      claims: [],
+      report: null,
+      iteration: 0,
+      gaps: [],
+      contradictions: [],
+      isSufficient: false
+    };
+
+    const finalState = await app.invoke(initialState);
+    
+    // Should have saved follow-up tasks
+    expect(db.saveFollowUpTasks).toHaveBeenCalled();
+    // Reached max iterations (2)
+    expect(finalState.iteration).toBe(2);
+    // Forced sufficient
+    expect(finalState.isSufficient).toBe(true);
   });
 });

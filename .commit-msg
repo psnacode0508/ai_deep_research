@@ -1,13 +1,8 @@
-feat: implement LangGraph research engine
+feat: add reflective iterative research
 
-- Integrated `@langchain/langgraph`, `@langchain/google-genai`, and `@tavily/core`.
-- Implemented a complete LangGraph research workflow (`engine/graph.ts`) comprising:
-  - Planner: Dynamically translates questions into discrete web search queries.
-  - Search: Executes parallel searches using Tavily with automatic domain filtering and URL deduplication.
-  - Extraction: Leverages Gemini structured output to extract factual claims and supporting quotes.
-  - Synthesis: Generates a final citation-backed markdown report.
-- Built a database persistence layer (`engine/db.ts`) to stream graph state changes into the existing `research_sessions`, `research_plans`, `research_tasks`, `research_sources`, `evidence`, and `claims` tables.
-- Implemented robust error handling that marks partial failures appropriately without aborting the entire session.
-- Replaced the `ResearchEngine` boundary stubs with asynchronous graph execution.
-- Added backend vitest coverage for the state transition logic and engine integration.
-- Updated `.env.example` and `config/env.ts` to require `GEMINI_API_KEY` and `TAVILY_API_KEY`.
+- Implemented `reflect_on_evidence` LangGraph node using Gemini structured output.
+- The reflection node evaluates existing claims for sufficiency, detects contradictions, and identifies research gaps.
+- Added iterative loop routing: if evidence is insufficient and iteration limit is not reached, follow-up search tasks are generated and passed to the `execute_search` node.
+- Updated `db.ts` to persist detected contradictions and new follow-up tasks to the database (`contradictions` and `research_tasks` tables respectively).
+- Updated `synthesize_report` node to explicitly include detected contradictions and unresolved gaps in the final markdown report.
+- Added comprehensive mocked vitest coverage for the reflection and iteration routing logic.
