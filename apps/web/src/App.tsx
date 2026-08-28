@@ -1,4 +1,4 @@
-import React from "react";
+import React, { Suspense } from "react";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 
 import { AuthProvider } from "@/context/AuthContext";
@@ -6,67 +6,74 @@ import RootLayout from "@/layouts/RootLayout";
 import ProtectedRoute from "@/router/ProtectedRoute";
 import PublicOnlyRoute from "@/router/PublicOnlyRoute";
 
-// Public pages
-import HomePage from "@/pages/HomePage";
-import NotFoundPage from "@/pages/NotFoundPage";
+import Spinner from "@/components/ui/Spinner";
+
+// Lazy-loaded routes for code splitting
+const HomePage = React.lazy(() => import("@/pages/HomePage"));
+const NotFoundPage = React.lazy(() => import("@/pages/NotFoundPage"));
 
 // Auth pages
-import LoginPage from "@/pages/auth/LoginPage";
-import SignupPage from "@/pages/auth/SignupPage";
-import ForgotPasswordPage from "@/pages/auth/ForgotPasswordPage";
-import ResetPasswordPage from "@/pages/auth/ResetPasswordPage";
-import VerifyEmailPage from "@/pages/auth/VerifyEmailPage";
-import AuthCallbackPage from "@/pages/auth/AuthCallbackPage";
+const LoginPage = React.lazy(() => import("@/pages/auth/LoginPage"));
+const SignupPage = React.lazy(() => import("@/pages/auth/SignupPage"));
+const ForgotPasswordPage = React.lazy(() => import("@/pages/auth/ForgotPasswordPage"));
+const ResetPasswordPage = React.lazy(() => import("@/pages/auth/ResetPasswordPage"));
+const VerifyEmailPage = React.lazy(() => import("@/pages/auth/VerifyEmailPage"));
+const AuthCallbackPage = React.lazy(() => import("@/pages/auth/AuthCallbackPage"));
 
-// Protected pages
-import DashboardPage from "@/pages/DashboardPage";
+// Protected Application Shell
+const DashboardLayout = React.lazy(() => import("@/layouts/DashboardLayout"));
+const DashboardPage = React.lazy(() => import("@/pages/DashboardPage"));
+const NewResearchPage = React.lazy(() => import("@/pages/NewResearchPage"));
+const HistoryPage = React.lazy(() => import("@/pages/HistoryPage"));
+const SettingsPage = React.lazy(() => import("@/pages/SettingsPage"));
+
+// Fallback loader for suspense
+const PageLoader = () => (
+  <div className="min-h-dvh flex items-center justify-center bg-[var(--color-bg)]">
+    <Spinner size="lg" />
+  </div>
+);
 
 /**
  * Application root.
- *
- * Route tree:
- *   /                    → HomePage          (public)
- *   /login               → LoginPage         (public-only: redirects to /dashboard if authed)
- *   /signup              → SignupPage         (public-only)
- *   /forgot-password     → ForgotPasswordPage (public-only)
- *   /reset-password      → ResetPasswordPage  (public)
- *   /verify-email        → VerifyEmailPage    (public)
- *   /auth/callback       → AuthCallbackPage   (public — OAuth/email redirect target)
- *   /dashboard           → DashboardPage      (protected — redirects to /login if not authed)
- *   *                    → NotFoundPage
  */
 function App(): React.JSX.Element {
   return (
     <BrowserRouter>
-      {/*
-        AuthProvider wraps everything so useAuth() works in all routes,
-        including inside ProtectedRoute and PublicOnlyRoute.
-      */}
       <AuthProvider>
-        <Routes>
-          <Route element={<RootLayout />}>
-            {/* ── Public routes ───────────────────────────── */}
-            <Route index element={<HomePage />} />
-            <Route path="/verify-email" element={<VerifyEmailPage />} />
-            <Route path="/reset-password" element={<ResetPasswordPage />} />
-            <Route path="/auth/callback" element={<AuthCallbackPage />} />
+        <Suspense fallback={<PageLoader />}>
+          <Routes>
+            <Route element={<RootLayout />}>
+              {/* ── Public routes ───────────────────────────── */}
+              <Route index element={<HomePage />} />
+              <Route path="/verify-email" element={<VerifyEmailPage />} />
+              <Route path="/reset-password" element={<ResetPasswordPage />} />
+              <Route path="/auth/callback" element={<AuthCallbackPage />} />
 
-            {/* ── Public-only routes (redirect if authed) ─── */}
-            <Route element={<PublicOnlyRoute />}>
-              <Route path="/login" element={<LoginPage />} />
-              <Route path="/signup" element={<SignupPage />} />
-              <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+              {/* ── Public-only routes (redirect if authed) ─── */}
+              <Route element={<PublicOnlyRoute />}>
+                <Route path="/login" element={<LoginPage />} />
+                <Route path="/signup" element={<SignupPage />} />
+                <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+              </Route>
+
+              {/* ── Protected routes (redirect to /login) ────── */}
+              <Route element={<ProtectedRoute />}>
+                {/* Application Shell */}
+                <Route element={<DashboardLayout />}>
+                  <Route path="/dashboard" element={<DashboardPage />} />
+                  <Route path="/research/new" element={<NewResearchPage />} />
+                  <Route path="/research/:id" element={<div className="p-8 text-white">Research Detail Placeholder</div>} />
+                  <Route path="/history" element={<HistoryPage />} />
+                  <Route path="/settings" element={<SettingsPage />} />
+                </Route>
+              </Route>
+
+              {/* ── 404 ───────────────────────────────────────── */}
+              <Route path="*" element={<NotFoundPage />} />
             </Route>
-
-            {/* ── Protected routes (redirect to /login) ────── */}
-            <Route element={<ProtectedRoute />}>
-              <Route path="/dashboard" element={<DashboardPage />} />
-            </Route>
-
-            {/* ── 404 ───────────────────────────────────────── */}
-            <Route path="*" element={<NotFoundPage />} />
-          </Route>
-        </Routes>
+          </Routes>
+        </Suspense>
       </AuthProvider>
     </BrowserRouter>
   );

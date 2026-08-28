@@ -1,125 +1,119 @@
 import React from "react";
 import { motion } from "framer-motion";
-import { Brain, LogOut, User, Zap, Globe, Shield } from "lucide-react";
+import { FileText, Plus, ArrowRight, Zap, Shield, Search } from "lucide-react";
+import { Link, useNavigate } from "react-router-dom";
+import { Button } from "@/components/ui/Button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card";
 import { useAuth } from "@/hooks/useAuth";
-import { useNavigate } from "react-router-dom";
 
-/**
- * DashboardPage — /dashboard (Milestone 1 placeholder)
- *
- * Protected page proving authentication works end-to-end.
- * Shows the authenticated user's info and a sign-out button.
- *
- * The real research dashboard will be built in a future milestone.
- */
 function DashboardPage(): React.JSX.Element {
-  const { user, signOut } = useAuth();
+  const { user } = useAuth();
   const navigate = useNavigate();
 
-  async function handleSignOut() {
-    await signOut();
-    navigate("/login");
-  }
+  // Placeholder for future milestone data
+  const recentResearch = [];
 
   return (
-    <main className="min-h-dvh bg-[var(--color-bg)] p-6">
-      {/* Ambient glow */}
-      <div aria-hidden="true" className="pointer-events-none fixed inset-0 overflow-hidden">
-        <div className="absolute -top-40 left-1/2 -translate-x-1/2 w-[700px] h-[500px] rounded-full bg-brand-600/8 blur-[120px]" />
-      </div>
-
-      <div className="relative z-10 max-w-4xl mx-auto">
-        {/* Top bar */}
-        <header className="flex items-center justify-between mb-10">
-          <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-lg bg-brand-500/15 border border-brand-500/25 flex items-center justify-center">
-              <Brain size={18} className="text-brand-400" />
-            </div>
-            <span className="text-white font-semibold">DeepResearch</span>
-          </div>
-          <button
-            id="signout-btn"
-            onClick={handleSignOut}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm
-                       text-[var(--color-muted)] hover:text-white hover:bg-[var(--color-surface-2)]
-                       border border-transparent hover:border-[var(--color-border)]
-                       transition-all duration-150"
-          >
-            <LogOut size={14} />
-            Sign out
-          </button>
-        </header>
-
-        {/* Welcome */}
-        <motion.div
-          initial={{ opacity: 0, y: 16 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.4 }}
-          className="mb-8"
-        >
-          <div className="inline-flex items-center gap-2 px-3 py-1 mb-4 text-xs font-medium rounded-full
-                          border border-brand-500/30 bg-brand-500/10 text-brand-300">
-            <Zap size={11} className="text-brand-400" />
-            Milestone 1 — Authentication
-          </div>
-          <h1 className="text-3xl font-bold text-white mb-2">
-            Welcome back{user?.email ? `, ${user.email.split("@")[0]}` : ""}!
+    <div className="p-6 md:p-8 max-w-6xl mx-auto w-full">
+      <motion.div
+        initial={{ opacity: 0, y: 16 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.4 }}
+        className="mb-10 flex flex-col md:flex-row md:items-end justify-between gap-4"
+      >
+        <div>
+          <h1 className="text-3xl font-bold text-white mb-2 tracking-tight">
+            Welcome back, {user?.email?.split("@")[0]}
           </h1>
           <p className="text-[var(--color-muted)]">
-            Authentication is working. The research engine arrives in a future milestone.
+            Here's an overview of your recent research and activity.
           </p>
-        </motion.div>
+        </div>
+        <Button onClick={() => navigate("/research/new")} className="gap-2 shrink-0">
+          <Plus size={16} />
+          New Research
+        </Button>
+      </motion.div>
 
-        {/* User info card */}
-        <motion.div
-          initial={{ opacity: 0, y: 16 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.4, delay: 0.1 }}
-          className="mb-6 p-5 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-1)]"
-        >
-          <div className="flex items-start gap-4">
-            <div className="w-10 h-10 rounded-full bg-brand-500/15 border border-brand-500/20 flex items-center justify-center flex-shrink-0">
-              <User size={20} className="text-brand-400" />
+      {/* Stats/Quick Links Row */}
+      <motion.div
+        initial={{ opacity: 0, y: 16 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.4, delay: 0.1 }}
+        className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-10"
+      >
+        <Card className="bg-[var(--color-surface-2)] border-brand-500/20">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-brand-400 flex items-center gap-2 text-sm">
+              <Zap size={16} />
+              Active Milestone
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-white mb-1">M3 — UI Shell</div>
+            <p className="text-xs text-[var(--color-muted)]">Application structure is ready.</p>
+          </CardContent>
+        </Card>
+        <Card className="bg-[var(--color-surface-2)]">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-[var(--color-muted)] flex items-center gap-2 text-sm">
+              <Shield size={16} />
+              Authentication
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-green-400 mb-1">Secured</div>
+            <p className="text-xs text-[var(--color-muted)]">Session active via Supabase.</p>
+          </CardContent>
+        </Card>
+        <Card className="bg-[var(--color-surface-2)]">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-[var(--color-muted)] flex items-center gap-2 text-sm">
+              <Search size={16} />
+              Engine Status
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-yellow-400 mb-1">Offline</div>
+            <p className="text-xs text-[var(--color-muted)]">Coming in a future milestone.</p>
+          </CardContent>
+        </Card>
+      </motion.div>
+
+      {/* Recent Research Section */}
+      <motion.div
+        initial={{ opacity: 0, y: 16 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.4, delay: 0.2 }}
+      >
+        <div className="flex items-center justify-between mb-6">
+          <h2 className="text-xl font-semibold text-white">Recent Research</h2>
+          <Link to="/history" className="text-sm text-brand-400 hover:text-brand-300 flex items-center gap-1 transition-colors">
+            View all <ArrowRight size={14} />
+          </Link>
+        </div>
+
+        {recentResearch.length === 0 ? (
+          <div className="border border-dashed border-[var(--color-border)] rounded-xl p-12 text-center flex flex-col items-center">
+            <div className="w-12 h-12 rounded-full bg-[var(--color-surface-2)] border border-[var(--color-border)] flex items-center justify-center mb-4">
+              <FileText size={24} className="text-[var(--color-muted)]" />
             </div>
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium text-white mb-0.5">Authenticated user</p>
-              <p className="text-sm text-[var(--color-muted)] truncate">{user?.email}</p>
-              <p className="text-xs text-[var(--color-muted)] mt-1 font-mono opacity-60">
-                ID: {user?.id}
-              </p>
-            </div>
+            <h3 className="text-lg font-medium text-white mb-2">No research yet</h3>
+            <p className="text-sm text-[var(--color-muted)] max-w-sm mb-6">
+              Start your first deep research session to see it appear here.
+            </p>
+            <Button onClick={() => navigate("/research/new")} variant="outline" className="gap-2">
+              <Plus size={16} />
+              Start Research
+            </Button>
           </div>
-        </motion.div>
-
-        {/* Status cards */}
-        <motion.div
-          initial={{ opacity: 0, y: 16 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.4, delay: 0.2 }}
-          className="grid grid-cols-1 sm:grid-cols-3 gap-4"
-        >
-          {[
-            { icon: Shield, label: "Authentication", status: "Active", color: "text-green-400", bg: "bg-green-500/10 border-green-500/20" },
-            { icon: Brain,  label: "Research Engine", status: "Planned", color: "text-yellow-400", bg: "bg-yellow-500/10 border-yellow-500/20" },
-            { icon: Globe,  label: "Web Search",      status: "Planned", color: "text-yellow-400", bg: "bg-yellow-500/10 border-yellow-500/20" },
-          ].map(({ icon: Icon, label, status, color, bg }, i) => (
-            <motion.div
-              key={label}
-              initial={{ opacity: 0, y: 8 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.3, delay: 0.25 + i * 0.05 }}
-              className="p-4 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-2)]"
-            >
-              <div className={`w-8 h-8 rounded-lg border ${bg} flex items-center justify-center mb-3`}>
-                <Icon size={16} className={color} />
-              </div>
-              <p className="text-sm font-medium text-white">{label}</p>
-              <p className={`text-xs mt-0.5 ${color}`}>{status}</p>
-            </motion.div>
-          ))}
-        </motion.div>
-      </div>
-    </main>
+        ) : (
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            {/* List items will go here */}
+          </div>
+        )}
+      </motion.div>
+    </div>
   );
 }
 

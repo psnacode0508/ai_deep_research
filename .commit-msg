@@ -1,0 +1,9 @@
+feat: build premium DeepResearch UI shell
+
+- Added standard shadcn/ui components (Button, Card, Badge, Skeleton) using Tailwind and class-variance-authority.
+- Rebuilt `HomePage` as a premium cinematic landing page with CSS/Framer animations for the research workflow, features, and security showcases.
+- Implemented `DashboardLayout` providing a responsive authenticated shell with a sidebar, mobile menu, and user context.
+- Rewrote `DashboardPage` to use the new layout and components.
+- Added UI placeholder routes for `/research/new`, `/history`, and `/settings`.
+- Implemented route-level code splitting using `React.lazy` and `Suspense` in `App.tsx`, resolving Vite's large bundle size warning.
+- Preserved existing Supabase authentication logic untouched.
