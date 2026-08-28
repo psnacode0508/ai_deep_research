@@ -1,17 +1,47 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { FileText, Plus, ArrowRight, Zap, Shield, Search } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/Button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card";
+import { Badge } from "@/components/ui/Badge";
 import { useAuth } from "@/hooks/useAuth";
+import { supabase } from "@/lib/supabase";
+import { ResearchSession, ResearchStatus } from "@deepresearch/shared";
+import Spinner from "@/components/ui/Spinner";
+
+const API_URL = import.meta.env.VITE_API_URL || "http://localhost:4000";
 
 function DashboardPage(): React.JSX.Element {
   const { user } = useAuth();
   const navigate = useNavigate();
 
-  // Placeholder for future milestone data
-  const recentResearch = [];
+  const [recentResearch, setRecentResearch] = useState<ResearchSession[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchResearch = async () => {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session) return;
+        
+        const res = await fetch(`${API_URL}/api/v1/research`, {
+          headers: {
+            Authorization: `Bearer ${session.access_token}`,
+          }
+        });
+        const data = await res.json();
+        if (data.success) {
+          setRecentResearch(data.data);
+        }
+      } catch (err) {
+        console.error("Failed to fetch research:", err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchResearch();
+  }, []);
 
   return (
     <div className="p-6 md:p-8 max-w-6xl mx-auto w-full">
@@ -50,8 +80,8 @@ function DashboardPage(): React.JSX.Element {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-white mb-1">M3 — UI Shell</div>
-            <p className="text-xs text-[var(--color-muted)]">Application structure is ready.</p>
+            <div className="text-2xl font-bold text-white mb-1">M4 — Workspace</div>
+            <p className="text-xs text-[var(--color-muted)]">API Contract Ready.</p>
           </CardContent>
         </Card>
         <Card className="bg-[var(--color-surface-2)]">
@@ -75,7 +105,7 @@ function DashboardPage(): React.JSX.Element {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-yellow-400 mb-1">Offline</div>
-            <p className="text-xs text-[var(--color-muted)]">Coming in a future milestone.</p>
+            <p className="text-xs text-[var(--color-muted)]">Stubbed in M4 boundary.</p>
           </CardContent>
         </Card>
       </motion.div>
@@ -93,7 +123,9 @@ function DashboardPage(): React.JSX.Element {
           </Link>
         </div>
 
-        {recentResearch.length === 0 ? (
+        {loading ? (
+          <div className="py-12 flex justify-center"><Spinner /></div>
+        ) : recentResearch.length === 0 ? (
           <div className="border border-dashed border-[var(--color-border)] rounded-xl p-12 text-center flex flex-col items-center">
             <div className="w-12 h-12 rounded-full bg-[var(--color-surface-2)] border border-[var(--color-border)] flex items-center justify-center mb-4">
               <FileText size={24} className="text-[var(--color-muted)]" />
@@ -109,7 +141,28 @@ function DashboardPage(): React.JSX.Element {
           </div>
         ) : (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            {/* List items will go here */}
+            {recentResearch.map((session) => (
+              <Card 
+                key={session.id} 
+                className="bg-[var(--color-surface-2)] hover:bg-[var(--color-surface-3)] transition-colors cursor-pointer"
+                onClick={() => navigate(`/research/${session.id}`)}
+              >
+                <CardContent className="p-5 flex flex-col gap-3">
+                  <div className="flex items-start justify-between gap-4">
+                    <h3 className="font-semibold text-white line-clamp-2 leading-tight">
+                      {session.title || session.question}
+                    </h3>
+                    <Badge variant={session.status === ResearchStatus.Complete ? "success" : "secondary"} className="shrink-0">
+                      {session.status}
+                    </Badge>
+                  </div>
+                  <div className="text-xs text-[var(--color-muted)] flex items-center gap-4 mt-auto">
+                    <span>{new Date(session.createdAt).toLocaleDateString()}</span>
+                    <span className="capitalize">{session.depth} Depth</span>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
           </div>
         )}
       </motion.div>

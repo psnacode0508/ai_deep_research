@@ -106,6 +106,18 @@ export interface ResearchTask {
 }
 
 /**
+ * Configuration metadata for a research session.
+ */
+export interface ResearchSessionMetadata {
+  preferredSourceTypes: string[];
+  prioritizeDomains: string[];
+  excludeDomains: string[];
+  maxIterations: number;
+  requirePlanApproval: boolean;
+  requireFinalApproval: boolean;
+}
+
+/**
  * A full research session initiated by a user question.
  */
 export interface ResearchSession {
@@ -113,6 +125,8 @@ export interface ResearchSession {
   id: string;
   /** ID of the user who owns this session */
   userId: string;
+  /** Short auto-generated label */
+  title: string | null;
   /** The original research question as entered by the user */
   question: string;
   /** Configured depth for this session */
@@ -125,10 +139,21 @@ export interface ResearchSession {
   report: string | null;
   /** Structured citations for the report */
   citations: ResearchSource[];
+  /** Session configuration */
+  metadata: ResearchSessionMetadata;
   /** ISO 8601 timestamp of session creation */
   createdAt: string;
   /** ISO 8601 timestamp of last update */
   updatedAt: string;
+}
+
+/**
+ * Payload for POST /api/v1/research
+ */
+export interface CreateResearchRequest {
+  question: string;
+  depth: ResearchDepth;
+  metadata: ResearchSessionMetadata;
 }
 
 // ─────────────────────────────────────────────

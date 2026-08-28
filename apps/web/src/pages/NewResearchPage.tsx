@@ -1,12 +1,77 @@
-import React from "react";
+import React, { useState } from "react";
 import { motion } from "framer-motion";
-import { ArrowLeft, Sparkles } from "lucide-react";
+import { ArrowLeft, Sparkles, AlertCircle } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/Button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/Card";
+import { ResearchDepth, CreateResearchRequest } from "@deepresearch/shared";
+import { supabase } from "@/lib/supabase";
+
+const API_URL = import.meta.env.VITE_API_URL || "http://localhost:4000";
 
 function NewResearchPage(): React.JSX.Element {
   const navigate = useNavigate();
+  
+  const [question, setQuestion] = useState("");
+  const [depth, setDepth] = useState<ResearchDepth>(ResearchDepth.Standard);
+  const [preferredSourceTypes, setPreferredSourceTypes] = useState<string>("");
+  const [prioritizeDomains, setPrioritizeDomains] = useState<string>("");
+  const [excludeDomains, setExcludeDomains] = useState<string>("");
+  const [maxIterations, setMaxIterations] = useState<number>(3);
+  const [requirePlanApproval, setRequirePlanApproval] = useState(false);
+  const [requireFinalApproval, setRequireFinalApproval] = useState(false);
+  
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [error, setError] = useState("");
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!question.trim()) {
+      setError("Please enter a research question.");
+      return;
+    }
+    
+    setIsSubmitting(true);
+    setError("");
+
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) throw new Error("Authentication required");
+
+      const payload: CreateResearchRequest = {
+        question: question.trim(),
+        depth,
+        metadata: {
+          preferredSourceTypes: preferredSourceTypes.split(",").map(s => s.trim()).filter(Boolean),
+          prioritizeDomains: prioritizeDomains.split(",").map(s => s.trim()).filter(Boolean),
+          excludeDomains: excludeDomains.split(",").map(s => s.trim()).filter(Boolean),
+          maxIterations,
+          requirePlanApproval,
+          requireFinalApproval,
+        }
+      };
+
+      const res = await fetch(`${API_URL}/api/v1/research`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify(payload),
+      });
+
+      const data = await res.json();
+      
+      if (!res.ok || !data.success) {
+        throw new Error(data.error?.message || "Failed to create research session");
+      }
+
+      navigate(`/research/${data.data.id}`);
+    } catch (err: any) {
+      setError(err.message || "An unexpected error occurred");
+      setIsSubmitting(false);
+    }
+  };
 
   return (
     <div className="p-6 md:p-8 max-w-3xl mx-auto w-full">
@@ -27,49 +92,188 @@ function NewResearchPage(): React.JSX.Element {
           <h1 className="text-3xl font-bold text-white tracking-tight">New Research</h1>
         </div>
         <p className="text-[var(--color-muted)] mb-8 ml-13">
-          Ask a complex question. The AI engine will decompose it, search the web, and synthesise a report.
+          Configure and launch a new deep research session.
         </p>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Research Prompt</CardTitle>
-            <CardDescription>
-              Engine execution is disabled in Milestone 3. This is a UI placeholder.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="flex flex-col gap-2">
-              <label htmlFor="prompt" className="text-sm font-medium text-white">
-                What would you like to research?
-              </label>
-              <textarea
-                id="prompt"
-                rows={4}
-                disabled
-                className="w-full rounded-lg bg-[var(--color-surface-2)] border border-[var(--color-border)] p-3 text-sm text-white placeholder:text-[var(--color-muted)] resize-none"
-                placeholder="e.g., What are the long-term economic impacts of shifting to universal basic income in developing nations?"
-              />
-            </div>
-            
-            <div className="flex flex-col gap-2">
-              <label className="text-sm font-medium text-white">Research Depth</label>
-              <div className="grid grid-cols-3 gap-3">
-                {['Quick', 'Standard', 'Deep'].map(depth => (
-                  <div key={depth} className="border border-[var(--color-border)] bg-[var(--color-surface-2)] rounded-lg p-3 text-center opacity-50 cursor-not-allowed">
-                    <span className="text-sm text-white">{depth}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
+        {error && (
+          <div className="mb-6 p-4 rounded-lg bg-red-500/10 border border-red-500/20 flex items-start gap-3">
+            <AlertCircle size={18} className="text-red-400 mt-0.5 shrink-0" />
+            <p className="text-sm text-red-200 leading-relaxed">{error}</p>
+          </div>
+        )}
 
-            <div className="pt-4 flex justify-end">
-              <Button disabled className="gap-2">
-                <Sparkles size={16} />
-                Start Engine
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
+        <form onSubmit={handleSubmit}>
+          <Card className="mb-6">
+            <CardHeader>
+              <CardTitle>Core Objective</CardTitle>
+              <CardDescription>
+                What should the AI engine investigate?
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              <div className="flex flex-col gap-2">
+                <label htmlFor="question" className="text-sm font-medium text-white">
+                  Research Question <span className="text-red-400">*</span>
+                </label>
+                <textarea
+                  id="question"
+                  rows={4}
+                  value={question}
+                  onChange={(e) => setQuestion(e.target.value)}
+                  disabled={isSubmitting}
+                  className="w-full rounded-lg bg-[var(--color-surface-2)] border border-[var(--color-border)] p-3 text-sm text-white placeholder:text-[var(--color-muted)] resize-none focus:outline-none focus:ring-1 focus:ring-brand-500"
+                  placeholder="e.g., What are the long-term economic impacts of shifting to universal basic income in developing nations?"
+                />
+              </div>
+              
+              <div className="flex flex-col gap-2">
+                <label className="text-sm font-medium text-white">Research Depth</label>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  {[
+                    { val: ResearchDepth.Quick, label: 'Quick Scan', desc: 'Fewer tasks, surface level' },
+                    { val: ResearchDepth.Standard, label: 'Standard', desc: 'Balanced depth (recommended)' },
+                    { val: ResearchDepth.Deep, label: 'Deep Dive', desc: 'Exhaustive with multiple reflections' }
+                  ].map(({ val, label, desc }) => (
+                    <div 
+                      key={val} 
+                      onClick={() => !isSubmitting && setDepth(val as ResearchDepth)}
+                      className={`border rounded-lg p-4 cursor-pointer transition-colors ${
+                        depth === val 
+                          ? 'border-brand-500 bg-brand-500/10' 
+                          : 'border-[var(--color-border)] bg-[var(--color-surface-2)] hover:border-[var(--color-border-hover)]'
+                      } ${isSubmitting ? 'opacity-50 cursor-not-allowed' : ''}`}
+                    >
+                      <div className="text-sm font-medium text-white mb-1">{label}</div>
+                      <div className="text-xs text-[var(--color-muted)]">{desc}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="mb-6">
+            <CardHeader>
+              <CardTitle>Advanced Configuration</CardTitle>
+              <CardDescription>
+                Tune the engine's behavior and sources. (Optional)
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="flex flex-col gap-2">
+                  <label htmlFor="prioritizeDomains" className="text-sm font-medium text-white">
+                    Prioritize Domains
+                  </label>
+                  <input
+                    id="prioritizeDomains"
+                    type="text"
+                    value={prioritizeDomains}
+                    onChange={(e) => setPrioritizeDomains(e.target.value)}
+                    disabled={isSubmitting}
+                    className="w-full rounded-md bg-[var(--color-surface-2)] border border-[var(--color-border)] px-3 py-2 text-sm text-white focus:outline-none focus:ring-1 focus:ring-brand-500"
+                    placeholder="e.g. nature.com, reuters.com (comma separated)"
+                  />
+                </div>
+                
+                <div className="flex flex-col gap-2">
+                  <label htmlFor="excludeDomains" className="text-sm font-medium text-white">
+                    Exclude Domains
+                  </label>
+                  <input
+                    id="excludeDomains"
+                    type="text"
+                    value={excludeDomains}
+                    onChange={(e) => setExcludeDomains(e.target.value)}
+                    disabled={isSubmitting}
+                    className="w-full rounded-md bg-[var(--color-surface-2)] border border-[var(--color-border)] px-3 py-2 text-sm text-white focus:outline-none focus:ring-1 focus:ring-brand-500"
+                    placeholder="e.g. reddit.com, twitter.com"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="flex flex-col gap-2">
+                  <label htmlFor="preferredSourceTypes" className="text-sm font-medium text-white">
+                    Preferred Source Types
+                  </label>
+                  <input
+                    id="preferredSourceTypes"
+                    type="text"
+                    value={preferredSourceTypes}
+                    onChange={(e) => setPreferredSourceTypes(e.target.value)}
+                    disabled={isSubmitting}
+                    className="w-full rounded-md bg-[var(--color-surface-2)] border border-[var(--color-border)] px-3 py-2 text-sm text-white focus:outline-none focus:ring-1 focus:ring-brand-500"
+                    placeholder="e.g. academic, news, government"
+                  />
+                </div>
+
+                <div className="flex flex-col gap-2">
+                  <label htmlFor="maxIterations" className="text-sm font-medium text-white">
+                    Max Reflections/Iterations
+                  </label>
+                  <input
+                    id="maxIterations"
+                    type="number"
+                    min="1"
+                    max="10"
+                    value={maxIterations}
+                    onChange={(e) => setMaxIterations(parseInt(e.target.value))}
+                    disabled={isSubmitting}
+                    className="w-full rounded-md bg-[var(--color-surface-2)] border border-[var(--color-border)] px-3 py-2 text-sm text-white focus:outline-none focus:ring-1 focus:ring-brand-500"
+                  />
+                </div>
+              </div>
+
+              <div className="pt-4 border-t border-[var(--color-border)] flex flex-col gap-4">
+                <label className="flex items-center gap-3 cursor-pointer">
+                  <input 
+                    type="checkbox"
+                    checked={requirePlanApproval}
+                    onChange={(e) => setRequirePlanApproval(e.target.checked)}
+                    disabled={isSubmitting}
+                    className="w-4 h-4 rounded border-[var(--color-border)] bg-[var(--color-surface-2)] text-brand-500 focus:ring-brand-500/50"
+                  />
+                  <div>
+                    <div className="text-sm font-medium text-white">Require Plan Approval</div>
+                    <div className="text-xs text-[var(--color-muted)]">Pause engine after planning to allow manual review.</div>
+                  </div>
+                </label>
+                
+                <label className="flex items-center gap-3 cursor-pointer">
+                  <input 
+                    type="checkbox"
+                    checked={requireFinalApproval}
+                    onChange={(e) => setRequireFinalApproval(e.target.checked)}
+                    disabled={isSubmitting}
+                    className="w-4 h-4 rounded border-[var(--color-border)] bg-[var(--color-surface-2)] text-brand-500 focus:ring-brand-500/50"
+                  />
+                  <div>
+                    <div className="text-sm font-medium text-white">Require Final Approval</div>
+                    <div className="text-xs text-[var(--color-muted)]">Pause before synthesizing the final report.</div>
+                  </div>
+                </label>
+              </div>
+            </CardContent>
+          </Card>
+
+          <div className="flex justify-end pt-2 pb-10">
+            <Button type="submit" disabled={isSubmitting} className="gap-2 px-8">
+              {isSubmitting ? (
+                <>
+                  <div className="w-4 h-4 rounded-full border-2 border-white/20 border-t-white animate-spin" />
+                  Starting...
+                </>
+              ) : (
+                <>
+                  <Sparkles size={16} />
+                  Start Engine
+                </>
+              )}
+            </Button>
+          </div>
+        </form>
       </motion.div>
     </div>
   );

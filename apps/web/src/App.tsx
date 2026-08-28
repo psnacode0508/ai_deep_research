@@ -24,6 +24,7 @@ const AuthCallbackPage = React.lazy(() => import("@/pages/auth/AuthCallbackPage"
 const DashboardLayout = React.lazy(() => import("@/layouts/DashboardLayout"));
 const DashboardPage = React.lazy(() => import("@/pages/DashboardPage"));
 const NewResearchPage = React.lazy(() => import("@/pages/NewResearchPage"));
+const ResearchWorkspacePage = React.lazy(() => import("@/pages/ResearchWorkspacePage"));
 const HistoryPage = React.lazy(() => import("@/pages/HistoryPage"));
 const SettingsPage = React.lazy(() => import("@/pages/SettingsPage"));
 
@@ -63,7 +64,7 @@ function App(): React.JSX.Element {
                 <Route element={<DashboardLayout />}>
                   <Route path="/dashboard" element={<DashboardPage />} />
                   <Route path="/research/new" element={<NewResearchPage />} />
-                  <Route path="/research/:id" element={<div className="p-8 text-white">Research Detail Placeholder</div>} />
+                  <Route path="/research/:id" element={<ResearchWorkspacePage />} />
                   <Route path="/history" element={<HistoryPage />} />
                   <Route path="/settings" element={<SettingsPage />} />
                 </Route>

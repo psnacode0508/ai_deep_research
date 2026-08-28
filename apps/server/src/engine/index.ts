@@ -18,7 +18,35 @@
  * ║  DO NOT add HTTP concerns (req/res) to this module.          ║
  * ╚══════════════════════════════════════════════════════════════╝
  *
- * Milestone 0: Stub only — will be implemented in a future milestone.
+ * Milestone 4: Boundary Contract Only.
  */
 
-export {};
+export class ResearchEngine {
+  /**
+   * Generates a research plan based on the session's question and depth.
+   */
+  static async createPlan(sessionId: string, config: any): Promise<void> {
+    console.log(`[Engine stub] createPlan called for session: ${sessionId}`);
+  }
+
+  /**
+   * Starts executing the tasks in a research plan.
+   */
+  static async startResearch(sessionId: string): Promise<void> {
+    console.log(`[Engine stub] startResearch called for session: ${sessionId}`);
+  }
+
+  /**
+   * Resumes a paused research session (e.g., after human approval).
+   */
+  static async resumeResearch(sessionId: string): Promise<void> {
+    console.log(`[Engine stub] resumeResearch called for session: ${sessionId}`);
+  }
+
+  /**
+   * Cancels an ongoing research session.
+   */
+  static async cancelResearch(sessionId: string): Promise<void> {
+    console.log(`[Engine stub] cancelResearch called for session: ${sessionId}`);
+  }
+}

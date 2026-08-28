@@ -1,9 +1,8 @@
-feat: build premium DeepResearch UI shell
+feat: build research workspace and API contract
 
-- Added standard shadcn/ui components (Button, Card, Badge, Skeleton) using Tailwind and class-variance-authority.
-- Rebuilt `HomePage` as a premium cinematic landing page with CSS/Framer animations for the research workflow, features, and security showcases.
-- Implemented `DashboardLayout` providing a responsive authenticated shell with a sidebar, mobile menu, and user context.
-- Rewrote `DashboardPage` to use the new layout and components.
-- Added UI placeholder routes for `/research/new`, `/history`, and `/settings`.
-- Implemented route-level code splitting using `React.lazy` and `Suspense` in `App.tsx`, resolving Vite's large bundle size warning.
-- Preserved existing Supabase authentication logic untouched.
+- Replaced the placeholder `/research/new` with a polished research configuration form supporting Research Depth and Advanced settings (domains, source types, approvals).
+- Created the `/research/:id` workspace dashboard, featuring a Left Panel (Research Plan), Center Panel (Live Engine Activity), Right Panel (Sources), and Header.
+- Updated `DashboardPage` to fetch and display actual research sessions.
+- Defined backend API structure for `/api/v1/research` (POST, GET, DELETE) integrated directly with the Supabase schema, including RLS checking on the backend where applicable via explicit user queries.
+- Refined `packages/shared` types (`ResearchSessionMetadata`, `CreateResearchRequest`, updated `ResearchSession` interface).
+- Established the `ResearchEngine` boundary stub to decouple the API from future LangGraph AI integration.
