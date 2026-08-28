@@ -48,13 +48,12 @@ export const config = {
   },
 
   // ── AI / Research ─────────────────────────────────────
-  // Not validated at startup — will be required in a later milestone.
   gemini: {
-    apiKey: process.env["GEMINI_API_KEY"] ?? "",
-    model: optionalEnv("GEMINI_MODEL", "gemini-2.0-flash"),
+    apiKey: requireEnv("GEMINI_API_KEY"),
+    model: optionalEnv("GEMINI_MODEL", "gemini-2.5-flash"),
   },
   tavily: {
-    apiKey: process.env["TAVILY_API_KEY"] ?? "",
+    apiKey: requireEnv("TAVILY_API_KEY"),
   },
 
   // ── Background Jobs ────────────────────────────────────

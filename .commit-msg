@@ -1,8 +1,13 @@
-feat: build research workspace and API contract
+feat: implement LangGraph research engine
 
-- Replaced the placeholder `/research/new` with a polished research configuration form supporting Research Depth and Advanced settings (domains, source types, approvals).
-- Created the `/research/:id` workspace dashboard, featuring a Left Panel (Research Plan), Center Panel (Live Engine Activity), Right Panel (Sources), and Header.
-- Updated `DashboardPage` to fetch and display actual research sessions.
-- Defined backend API structure for `/api/v1/research` (POST, GET, DELETE) integrated directly with the Supabase schema, including RLS checking on the backend where applicable via explicit user queries.
-- Refined `packages/shared` types (`ResearchSessionMetadata`, `CreateResearchRequest`, updated `ResearchSession` interface).
-- Established the `ResearchEngine` boundary stub to decouple the API from future LangGraph AI integration.
+- Integrated `@langchain/langgraph`, `@langchain/google-genai`, and `@tavily/core`.
+- Implemented a complete LangGraph research workflow (`engine/graph.ts`) comprising:
+  - Planner: Dynamically translates questions into discrete web search queries.
+  - Search: Executes parallel searches using Tavily with automatic domain filtering and URL deduplication.
+  - Extraction: Leverages Gemini structured output to extract factual claims and supporting quotes.
+  - Synthesis: Generates a final citation-backed markdown report.
+- Built a database persistence layer (`engine/db.ts`) to stream graph state changes into the existing `research_sessions`, `research_plans`, `research_tasks`, `research_sources`, `evidence`, and `claims` tables.
+- Implemented robust error handling that marks partial failures appropriately without aborting the entire session.
+- Replaced the `ResearchEngine` boundary stubs with asynchronous graph execution.
+- Added backend vitest coverage for the state transition logic and engine integration.
+- Updated `.env.example` and `config/env.ts` to require `GEMINI_API_KEY` and `TAVILY_API_KEY`.
