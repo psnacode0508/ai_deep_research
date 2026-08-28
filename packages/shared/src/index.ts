@@ -179,3 +179,38 @@ export interface ResearchEvent {
   /** ISO 8601 timestamp */
   timestamp: string;
 }
+
+// ─────────────────────────────────────────────
+// Authentication types
+// ─────────────────────────────────────────────
+
+/**
+ * Safe authenticated user info returned by GET /api/v1/auth/me.
+ * Only fields safe to expose are included — never raw tokens.
+ */
+export interface AuthUser {
+  /** Supabase user UUID */
+  id: string;
+  /** User email address */
+  email: string;
+  /** Whether the email has been verified */
+  emailVerified: boolean;
+  /** ISO 8601 timestamp of account creation */
+  createdAt: string;
+}
+
+/**
+ * Standard API response envelope used by the backend.
+ */
+export interface ApiResponse<T> {
+  success: true;
+  data: T;
+}
+
+export interface ApiErrorResponse {
+  success: false;
+  error: {
+    code: string;
+    message: string;
+  };
+}

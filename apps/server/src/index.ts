@@ -8,6 +8,7 @@ import { notFound } from "./middleware/notFound";
 import { errorHandler } from "./middleware/errorHandler";
 
 import healthRouter from "./routes/health.routes";
+import authRouter from "./routes/auth.routes";
 
 // ─────────────────────────────────────────────
 // Create Express application
@@ -48,10 +49,10 @@ app.use(requestLogger);
 // Routes
 // ─────────────────────────────────────────────
 app.use("/health", healthRouter);
+app.use("/api/v1/auth", authRouter);
 
 // Future routes will be mounted here, e.g.:
 //   app.use("/api/v1/sessions", sessionsRouter);
-//   app.use("/api/v1/auth", authRouter);
 
 // ─────────────────────────────────────────────
 // 404 + global error handler (must be last)
