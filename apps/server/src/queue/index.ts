@@ -28,3 +28,24 @@ export async function enqueueResearchJob(
     }
   );
 }
+
+export async function resumeResearchJob(
+  sessionId: string,
+  userId: string,
+  stage: string
+) {
+  await researchQueue.add(
+    "run-research",
+    { sessionId, userId, stage },
+    {
+      jobId: `${sessionId}-${stage}`, // Ensures idempotency per stage
+      attempts: 3,
+      backoff: {
+        type: "exponential",
+        delay: 5000,
+      },
+      removeOnComplete: true,
+      removeOnFail: false,
+    }
+  );
+}

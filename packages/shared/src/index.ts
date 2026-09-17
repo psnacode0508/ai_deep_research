@@ -30,8 +30,14 @@ export enum ResearchStatus {
   FollowingUp = "following_up",
   /** Final report is being synthesised */
   Synthesising = "synthesising",
-  /** Awaiting human review / approval */
-  AwaitingApproval = "awaiting_approval",
+  /** Awaiting human plan review / approval */
+  AwaitingPlanApproval = "awaiting_plan_approval",
+  /** Plan rejected */
+  PlanRejected = "plan_rejected",
+  /** Awaiting human final report review / approval */
+  AwaitingFinalApproval = "awaiting_final_approval",
+  /** Final report rejected */
+  FinalRejected = "final_rejected",
   /** Research completed successfully */
   Complete = "complete",
   /** Research failed with an unrecoverable error */

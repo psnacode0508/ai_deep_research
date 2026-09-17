@@ -132,6 +132,35 @@ function ResearchWorkspacePage(): React.JSX.Element {
     }
   };
 
+  const handleApproval = async (type: 'plan' | 'report', action: 'approve' | 'reject') => {
+    try {
+      const { data: { session: authSession } } = await supabase.auth.getSession();
+      if (!authSession) return;
+
+      const res = await fetch(`${API_URL}/api/v1/research/${id}/${type}/${action}`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${authSession.access_token}`,
+        },
+      });
+
+      const data = await res.json();
+      if (res.ok && data.success) {
+        // Optimistically update status to show loading/progress
+        setSession(s => {
+          if (!s) return s;
+          if (type === 'plan' && action === 'approve') return { ...s, status: ResearchStatus.Planning };
+          if (type === 'plan' && action === 'reject') return { ...s, status: ResearchStatus.PlanRejected };
+          if (type === 'report' && action === 'approve') return { ...s, status: ResearchStatus.Synthesising };
+          if (type === 'report' && action === 'reject') return { ...s, status: ResearchStatus.FinalRejected };
+          return s;
+        });
+      }
+    } catch (err) {
+      console.error(`Failed to ${action} ${type}`, err);
+    }
+  };
+
   if (loading) {
     return (
       <div className="min-h-full flex items-center justify-center">
@@ -166,8 +195,14 @@ function ResearchWorkspacePage(): React.JSX.Element {
       case ResearchStatus.FollowingUp:
       case ResearchStatus.Synthesising:
         return <Badge variant="default" className="animate-pulse">Active: {status}</Badge>;
-      case ResearchStatus.AwaitingApproval:
-        return <Badge variant="warning">Awaiting Approval</Badge>;
+      case ResearchStatus.AwaitingPlanApproval:
+        return <Badge variant="warning">Awaiting Plan Approval</Badge>;
+      case ResearchStatus.AwaitingFinalApproval:
+        return <Badge variant="warning">Awaiting Final Approval</Badge>;
+      case ResearchStatus.PlanRejected:
+        return <Badge variant="destructive">Plan Rejected</Badge>;
+      case ResearchStatus.FinalRejected:
+        return <Badge variant="destructive">Report Rejected</Badge>;
       case ResearchStatus.Complete:
         return <Badge variant="success">Completed</Badge>;
       case ResearchStatus.Failed:
@@ -236,6 +271,16 @@ function ResearchWorkspacePage(): React.JSX.Element {
               <CardContent className="flex-1 overflow-y-auto p-4">
                 {session.tasks && session.tasks.length > 0 ? (
                   <div className="space-y-4">
+                    {session.status === ResearchStatus.AwaitingPlanApproval && (
+                      <div className="p-4 bg-yellow-500/10 border border-yellow-500/30 rounded-lg mb-4">
+                        <h4 className="text-sm font-semibold text-yellow-400 mb-2">Review Research Plan</h4>
+                        <p className="text-xs text-[var(--color-muted)] mb-4">Please review the subtasks below before the engine begins execution.</p>
+                        <div className="flex gap-2">
+                          <Button size="sm" onClick={() => handleApproval('plan', 'approve')} className="bg-yellow-500 hover:bg-yellow-600 text-black">Approve Plan</Button>
+                          <Button size="sm" variant="destructive" onClick={() => handleApproval('plan', 'reject')}>Reject</Button>
+                        </div>
+                      </div>
+                    )}
                     {session.tasks.map((task: any) => (
                       <div key={task.id} className="p-3 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface-2)]">
                         <div className="text-xs font-mono text-[var(--color-muted)] mb-1">Task {task.task_index + 1} {task.is_followup && "(Follow-up)"}</div>
@@ -325,6 +370,15 @@ function ResearchWorkspacePage(): React.JSX.Element {
                      </div>
                   </div>
                   
+                  {session.status === ResearchStatus.AwaitingFinalApproval && session.report && (
+                    <div className="mt-4 flex flex-col items-center justify-center p-4 bg-yellow-500/10 border border-yellow-500/20 rounded-lg">
+                       <span className="text-yellow-400 font-medium text-sm mb-2">Final Report Ready for Review</span>
+                       <div className="flex gap-2">
+                         <Button size="sm" className="bg-yellow-500 hover:bg-yellow-600 text-black" onClick={() => handleApproval('report', 'approve')}>Approve Report</Button>
+                         <Button size="sm" variant="destructive" onClick={() => handleApproval('report', 'reject')}>Reject</Button>
+                       </div>
+                    </div>
+                  )}
                   {session.status === ResearchStatus.Complete && session.report && (
                     <div className="mt-4 flex flex-col items-center justify-center p-4 bg-green-500/10 border border-green-500/20 rounded-lg">
                        <span className="text-green-400 font-medium text-sm mb-2">Report Ready</span>

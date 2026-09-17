@@ -55,6 +55,7 @@ export class ResearchEngine {
         question: session.question,
         depth: session.depth,
         metadata: session.metadata || {},
+        currentStatus: session.status,
       });
       
       console.log(`[Engine] Execution completed for session: ${sessionId}`);

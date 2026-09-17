@@ -2,7 +2,7 @@ import { Request, Response } from "express";
 import { supabaseAdmin } from "../db/supabase";
 import { ResearchEngine } from "../engine";
 import { CreateResearchRequest, ResearchDepth, ResearchStatus } from "@deepresearch/shared";
-import { enqueueResearchJob } from "../queue";
+import { enqueueResearchJob, resumeResearchJob } from "../queue";
 
 /**
  * Creates a new research session.
@@ -278,5 +278,89 @@ export async function cancelResearchSession(req: Request, res: Response): Promis
   } catch (error) {
     console.error("[ResearchController] Unexpected error cancelling:", error);
     res.status(500).json({ success: false, error: { code: "INTERNAL_ERROR", message: "Unexpected error" } });
+  }
+}
+
+export async function approvePlan(req: Request, res: Response): Promise<void> {
+  try {
+    const user = req.user;
+    const { id } = req.params;
+    if (!user) { res.status(401).json({ success: false, error: { code: "UNAUTHORIZED", message: "User not authenticated" } }); return; }
+
+    const { data: session, error } = await supabaseAdmin.from("research_sessions").select("status").eq("id", id).eq("user_id", user.id).single();
+    if (error || !session) { res.status(404).json({ success: false, error: { code: "NOT_FOUND", message: "Session not found" } }); return; }
+    
+    if (session.status !== ResearchStatus.AwaitingPlanApproval) {
+      res.status(400).json({ success: false, error: { code: "BAD_REQUEST", message: "Session is not awaiting plan approval" } }); return;
+    }
+    
+    await resumeResearchJob(id, user.id, "execute_search");
+    res.status(200).json({ success: true });
+  } catch (err) {
+    res.status(500).json({ success: false, error: { code: "INTERNAL_ERROR", message: "Error" } });
+  }
+}
+
+export async function rejectPlan(req: Request, res: Response): Promise<void> {
+  try {
+    const user = req.user;
+    const { id } = req.params;
+    if (!user) { res.status(401).json({ success: false, error: { code: "UNAUTHORIZED", message: "User not authenticated" } }); return; }
+
+    const { data: session, error } = await supabaseAdmin.from("research_sessions").select("status").eq("id", id).eq("user_id", user.id).single();
+    if (error || !session) { res.status(404).json({ success: false, error: { code: "NOT_FOUND", message: "Session not found" } }); return; }
+    
+    if (session.status !== ResearchStatus.AwaitingPlanApproval) {
+      res.status(400).json({ success: false, error: { code: "BAD_REQUEST", message: "Session is not awaiting plan approval" } }); return;
+    }
+
+    const { error: updateError } = await supabaseAdmin.from("research_sessions").update({ status: ResearchStatus.PlanRejected }).eq("id", id);
+    if (updateError) throw updateError;
+    
+    res.status(200).json({ success: true });
+  } catch (err) {
+    res.status(500).json({ success: false, error: { code: "INTERNAL_ERROR", message: "Error" } });
+  }
+}
+
+export async function approveReport(req: Request, res: Response): Promise<void> {
+  try {
+    const user = req.user;
+    const { id } = req.params;
+    if (!user) { res.status(401).json({ success: false, error: { code: "UNAUTHORIZED", message: "User not authenticated" } }); return; }
+
+    const { data: session, error } = await supabaseAdmin.from("research_sessions").select("status").eq("id", id).eq("user_id", user.id).single();
+    if (error || !session) { res.status(404).json({ success: false, error: { code: "NOT_FOUND", message: "Session not found" } }); return; }
+    
+    if (session.status !== ResearchStatus.AwaitingFinalApproval) {
+      res.status(400).json({ success: false, error: { code: "BAD_REQUEST", message: "Session is not awaiting final approval" } }); return;
+    }
+    
+    await resumeResearchJob(id, user.id, "finalize_session");
+    res.status(200).json({ success: true });
+  } catch (err) {
+    res.status(500).json({ success: false, error: { code: "INTERNAL_ERROR", message: "Error" } });
+  }
+}
+
+export async function rejectReport(req: Request, res: Response): Promise<void> {
+  try {
+    const user = req.user;
+    const { id } = req.params;
+    if (!user) { res.status(401).json({ success: false, error: { code: "UNAUTHORIZED", message: "User not authenticated" } }); return; }
+
+    const { data: session, error } = await supabaseAdmin.from("research_sessions").select("status").eq("id", id).eq("user_id", user.id).single();
+    if (error || !session) { res.status(404).json({ success: false, error: { code: "NOT_FOUND", message: "Session not found" } }); return; }
+    
+    if (session.status !== ResearchStatus.AwaitingFinalApproval) {
+      res.status(400).json({ success: false, error: { code: "BAD_REQUEST", message: "Session is not awaiting final approval" } }); return;
+    }
+
+    const { error: updateError } = await supabaseAdmin.from("research_sessions").update({ status: ResearchStatus.FinalRejected }).eq("id", id);
+    if (updateError) throw updateError;
+    
+    res.status(200).json({ success: true });
+  } catch (err) {
+    res.status(500).json({ success: false, error: { code: "INTERNAL_ERROR", message: "Error" } });
   }
 }

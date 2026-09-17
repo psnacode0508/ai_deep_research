@@ -75,6 +75,10 @@ Respond with a JSON structure containing 'tasks'.`;
     
     const saved = await db.saveResearchPlan(state.sessionId, result.tasks);
     
+    if (state.metadata.requirePlanApproval) {
+      await db.updateSessionStatus(state.sessionId, ResearchStatus.AwaitingPlanApproval);
+    }
+
     return { tasks: saved.tasks };
   } catch (error: any) {
     return { error: `Planning failed: ${error.message}` };
@@ -327,6 +331,10 @@ Output the report in Markdown format.`;
     
     await db.saveSessionReport(state.sessionId, finalReport);
     
+    if (state.metadata.requireFinalApproval) {
+      await db.updateSessionStatus(state.sessionId, ResearchStatus.AwaitingFinalApproval);
+    }
+
     return { report: finalReport };
   } catch (error: any) {
     return { error: `Synthesis failed: ${error.message}` };
@@ -346,7 +354,7 @@ async function finalizeSession(state: ResearchState) {
  */
 function shouldContinueFromPlan(state: ResearchState) {
   if (state.error) return "fail";
-  if (state.metadata.requirePlanApproval) return "pause_for_approval"; // Not implemented in graph yet
+  if (state.metadata.requirePlanApproval) return "pause_for_approval";
   return "execute_search";
 }
 
@@ -371,6 +379,7 @@ function shouldContinueFromReflect(state: ResearchState) {
 
 function shouldContinueFromSynthesis(state: ResearchState) {
   if (state.error) return "fail";
+  if (state.metadata.requireFinalApproval) return "pause_for_approval";
   return "finalize_session";
 }
 
@@ -387,7 +396,16 @@ const workflow = new StateGraph<ResearchState>({ channels: stateChannels })
     return {};
   });
 
-workflow.addEdge(START, "plan_research");
+workflow.addConditionalEdges(START, (state: ResearchState & { currentStatus?: string }) => {
+  if (state.currentStatus === ResearchStatus.AwaitingPlanApproval) return "execute_search";
+  if (state.currentStatus === ResearchStatus.AwaitingFinalApproval) return "finalize_session";
+  return "plan_research";
+}, {
+  plan_research: "plan_research",
+  execute_search: "execute_search",
+  finalize_session: "finalize_session"
+});
+
 workflow.addConditionalEdges("plan_research", shouldContinueFromPlan, {
   fail: "fail",
   execute_search: "execute_search",
@@ -408,7 +426,8 @@ workflow.addConditionalEdges("reflect_on_evidence", shouldContinueFromReflect, {
 });
 workflow.addConditionalEdges("synthesize_report", shouldContinueFromSynthesis, {
   fail: "fail",
-  finalize_session: "finalize_session"
+  finalize_session: "finalize_session",
+  pause_for_approval: END
 });
 workflow.addEdge("finalize_session", END);
 workflow.addEdge("fail", END);

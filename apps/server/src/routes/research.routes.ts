@@ -6,7 +6,11 @@ import {
   listResearchSessions,
   deleteResearchSession,
   streamResearchEvents,
-  cancelResearchSession
+  cancelResearchSession,
+  approvePlan,
+  rejectPlan,
+  approveReport,
+  rejectReport
 } from "../controllers/research.controller";
 
 const router = Router();
@@ -19,6 +23,10 @@ router.get("/", listResearchSessions);
 router.get("/:id", getResearchSession);
 router.get("/:id/events", streamResearchEvents);
 router.post("/:id/cancel", cancelResearchSession);
+router.post("/:id/plan/approve", approvePlan);
+router.post("/:id/plan/reject", rejectPlan);
+router.post("/:id/report/approve", approveReport);
+router.post("/:id/report/reject", rejectReport);
 router.delete("/:id", deleteResearchSession);
 
 export default router;
