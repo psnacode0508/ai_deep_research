@@ -85,12 +85,15 @@ cp .env.example apps/server/.env
 npm install
 ```
 
-### 4. Start the backend
+### 4. Start the backend & worker
 
 ```bash
 npm run dev:server
 # Server starts at http://localhost:4000
 # Health check: http://localhost:4000/health
+
+# In a separate terminal, start the research worker:
+cd apps/server && npm run worker
 ```
 
 ### 5. Start the frontend
@@ -104,7 +107,7 @@ npm run dev:web
 
 ## Environment Variables
 
-Copy `.env.example` to `apps/server/.env` (backend) and to `apps/web/.env` (frontend).
+Copy `.env.example` to `apps/server/.env` (backend) and to `apps/web/.env` (frontend). Ensure Redis is running locally (e.g. `docker run -p 6379:6379 -d redis`).
 
 | Variable                   | Where    | Description                              |
 |----------------------------|----------|------------------------------------------|
@@ -117,7 +120,7 @@ Copy `.env.example` to `apps/server/.env` (backend) and to `apps/web/.env` (fron
 | `GEMINI_API_KEY`           | Server   | Google Gemini API key                    |
 | `GEMINI_MODEL`             | Server   | Gemini model name (e.g. `gemini-2.0-flash`) |
 | `TAVILY_API_KEY`           | Server   | Tavily Search API key                    |
-| `REDIS_URL`                | Server   | Redis connection URL                     |
+| `REDIS_URL`                | Server   | Redis connection URL (default: redis://localhost:6379) |
 | `VITE_SUPABASE_URL`        | Frontend | Supabase project URL (public)            |
 | `VITE_SUPABASE_ANON_KEY`   | Frontend | Supabase anon key (public)               |
 | `VITE_API_URL`             | Frontend | Backend API base URL                     |
@@ -132,6 +135,7 @@ From the repository root:
 |-----------------------|--------------------------------------|
 | `npm run dev:web`     | Start frontend dev server            |
 | `npm run dev:server`  | Start backend dev server             |
+| `cd apps/server && npm run worker` | Start the background research worker |
 | `npm run build:web`   | Build frontend for production        |
 | `npm run build:server`| Compile backend TypeScript           |
 | `npm run type-check`  | Type-check all packages              |

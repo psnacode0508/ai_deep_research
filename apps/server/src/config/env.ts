@@ -57,9 +57,8 @@ export const config = {
   },
 
   // ── Background Jobs ────────────────────────────────────
-  // Not validated at startup — will be required in a later milestone.
   redis: {
-    url: process.env["REDIS_URL"] ?? "",
+    url: optionalEnv("REDIS_URL", "redis://localhost:6379"),
   },
 } as const;
 

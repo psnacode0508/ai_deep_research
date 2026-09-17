@@ -2,6 +2,7 @@ import { Request, Response } from "express";
 import { supabaseAdmin } from "../db/supabase";
 import { ResearchEngine } from "../engine";
 import { CreateResearchRequest, ResearchDepth, ResearchStatus } from "@deepresearch/shared";
+import { enqueueResearchJob } from "../queue";
 
 /**
  * Creates a new research session.
@@ -54,9 +55,9 @@ export async function createResearchSession(req: Request, res: Response): Promis
       return;
     }
 
-    // Trigger engine in background
-    ResearchEngine.createPlan(session.id, metadata).catch((err) => {
-      console.error("[ResearchController] Engine failed to start:", err);
+    // Trigger engine in background via BullMQ worker
+    enqueueResearchJob(session.id, user.id, metadata).catch((err) => {
+      console.error("[ResearchController] Failed to enqueue research job:", err);
     });
 
     res.status(201).json({ success: true, data: session });
