@@ -399,11 +399,35 @@ const workflow = new StateGraph<ResearchState>({ channels: stateChannels })
 workflow.addConditionalEdges(START, (state: ResearchState & { currentStatus?: string }) => {
   if (state.currentStatus === ResearchStatus.AwaitingPlanApproval) return "execute_search";
   if (state.currentStatus === ResearchStatus.AwaitingFinalApproval) return "finalize_session";
+  
+  const terminalStates = [
+    ResearchStatus.PlanRejected,
+    ResearchStatus.FinalRejected,
+    ResearchStatus.Complete,
+    ResearchStatus.Failed,
+    ResearchStatus.Cancelled
+  ];
+  if (state.currentStatus && terminalStates.includes(state.currentStatus as ResearchStatus)) {
+    return "end_node";
+  }
+
+  const activeStates = [
+    ResearchStatus.Researching,
+    ResearchStatus.Evaluating,
+    ResearchStatus.Reflecting,
+    ResearchStatus.FollowingUp,
+    ResearchStatus.Synthesising
+  ];
+  if (state.currentStatus && activeStates.includes(state.currentStatus as ResearchStatus)) {
+    return "execute_search";
+  }
+
   return "plan_research";
 }, {
   plan_research: "plan_research",
   execute_search: "execute_search",
-  finalize_session: "finalize_session"
+  finalize_session: "finalize_session",
+  end_node: END
 });
 
 workflow.addConditionalEdges("plan_research", shouldContinueFromPlan, {
