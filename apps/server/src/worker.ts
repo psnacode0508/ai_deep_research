@@ -20,6 +20,18 @@ const worker = new Worker(
     console.log(`[Worker] Processing job ${job.id} for session ${sessionId}`);
 
     try {
+      // Check if session is already cancelled
+      const { data: session } = await supabaseAdmin
+        .from("research_sessions")
+        .select("status")
+        .eq("id", sessionId)
+        .single();
+        
+      if (session?.status === ResearchStatus.Cancelled) {
+        console.log(`[Worker] Job ${job.id} skipped, session ${sessionId} was cancelled.`);
+        return;
+      }
+
       // Execute the existing ResearchEngine
       await ResearchEngine.startResearch(sessionId);
       console.log(`[Worker] Finished processing job ${job.id} for session ${sessionId}`);

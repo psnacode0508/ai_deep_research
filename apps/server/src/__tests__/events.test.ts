@@ -1,5 +1,25 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
+vi.mock('../config/env', () => ({
+  config: {
+    redis: { url: "redis://localhost:6379" },
+    server: { nodeEnv: "test", isProduction: false, isDevelopment: false },
+    supabase: { url: "test", serviceRoleKey: "test", databaseUrl: "test" },
+    gemini: { apiKey: "test", model: "test" },
+    tavily: { apiKey: "test" },
+  }
+}));
+
+vi.mock("ioredis", () => {
+  return {
+    default: class RedisMock {
+      on = vi.fn();
+      subscribe = vi.fn();
+      publish = vi.fn();
+    }
+  };
+});
+
 import { eventService } from '../engine/events';
 import { ResearchEvent } from '@deepresearch/shared';
 
@@ -48,7 +68,8 @@ describe('EventService', () => {
       timestamp: new Date().toISOString()
     };
     
-    eventService.emit(testEvent);
+    // simulate receiving it from Redis
+    (eventService as any).localEmit(testEvent);
     
     const expectedPayload = `data: ${JSON.stringify(testEvent)}\n\n`;
     expect(mockRes1.write).toHaveBeenCalledWith(expectedPayload);
