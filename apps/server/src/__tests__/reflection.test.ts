@@ -7,8 +7,13 @@ vi.mock('../engine/db', () => ({
   updateTaskStatus: vi.fn(),
   saveSource: vi.fn().mockResolvedValue({ id: 'src-1' }),
   saveEvidence: vi.fn().mockResolvedValue({ id: 'ev-1' }),
-  saveClaim: vi.fn().mockResolvedValue({ id: 'cl-1' }),
-  getSessionClaims: vi.fn().mockResolvedValue([{ id: 'cl-1', content: 'test claim', source: { url: 'http://test.com' } }]),
+  saveClaim: vi.fn().mockResolvedValue({ id: 'claim-1' }),
+  getSessionSources: vi.fn().mockResolvedValue([{ id: 'source-1', url: 'http://test.com', full_content: 'test content' }]),
+  getSessionClaims: vi.fn().mockResolvedValue([
+    { id: 'cl-1', content: 'claim 1', source: { url: 'http://test.com' } },
+    { id: 'cl-2', content: 'claim 2', source: { url: 'http://test.com' } },
+    { id: 'cl-3', content: 'claim 3', source: { url: 'http://test.com' } }
+  ]),
   saveSessionReport: vi.fn(),
   saveContradiction: vi.fn().mockResolvedValue({ id: 'con-1' }),
   saveFollowUpTasks: vi.fn().mockResolvedValue([{ id: '2' }])

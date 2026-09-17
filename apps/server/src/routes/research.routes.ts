@@ -10,8 +10,15 @@ import {
   approvePlan,
   rejectPlan,
   approveReport,
-  rejectReport
+  rejectReport,
+  attachSource
 } from "../controllers/research.controller";
+import multer from "multer";
+
+const upload = multer({
+  limits: { fileSize: 10 * 1024 * 1024 },
+  storage: multer.memoryStorage()
+});
 
 const router = Router();
 
@@ -27,6 +34,7 @@ router.post("/:id/plan/approve", approvePlan);
 router.post("/:id/plan/reject", rejectPlan);
 router.post("/:id/report/approve", approveReport);
 router.post("/:id/report/reject", rejectReport);
+router.post("/:id/sources", upload.single("file"), attachSource);
 router.delete("/:id", deleteResearchSession);
 
 export default router;

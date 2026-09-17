@@ -82,6 +82,16 @@ export interface ResearchSource {
    * Range: 0.0 – 1.0
    */
   relevanceScore: number | null;
+  /** Category of the source (e.g. government, academic, blog) */
+  sourceCategory?: string | null;
+  /** Rationale for why this source is considered reliable or unreliable */
+  reliabilityRationale?: string | null;
+  /** Whether the source is considered a primary source */
+  isPrimarySource?: boolean | null;
+  /** Content type (e.g. 'text/html', 'application/pdf', 'text/plain') */
+  contentType?: string | null;
+  /** How the source was ingested */
+  sourceType?: 'web_search' | 'user_url' | 'user_pdf' | 'user_text' | string;
   /** ISO 8601 timestamp when the source was retrieved */
   retrievedAt: string;
 }

@@ -154,28 +154,38 @@ async function extractEvidence(state: ResearchState) {
   try {
     await db.updateSessionStatus(state.sessionId, ResearchStatus.Evaluating);
     
+    // Fetch all sources and claims to avoid duplicate extraction
+    const allSources = await db.getSessionSources(state.sessionId);
+    const existingClaims = await db.getSessionClaims(state.sessionId);
+    const extractedSourceIds = new Set(existingClaims.map((c: any) => c.source_id));
+    const pendingSources = allSources.filter((s: any) => !extractedSourceIds.has(s.id));
+    
     const newClaims = [];
     const extractionSchema = z.object({
       claims: z.array(z.object({
         claim: z.string().describe("A factual assertion found in the text"),
         confidence: z.number().min(0).max(1).describe("Confidence score between 0.0 and 1.0"),
-        quote: z.string().describe("Exact quote from the text supporting the claim")
+        quote: z.string().describe("Exact quote from the text supporting the claim"),
+        location_info: z.string().optional().describe("Location of the quote in the source, e.g. 'Page 3' or 'Section 2.1' if available")
       })).max(3)
     });
     const structuredLlm = llm.withStructuredOutput(extractionSchema, { name: "EvidenceExtraction" });
     
-    // Process sources sequentially to avoid rate limits, or batch them safely
-    for (const source of state.sources) {
+    // Process pending sources sequentially to avoid rate limits
+    for (const source of pendingSources) {
       try {
-        const prompt = `Extract up to 3 key factual claims answering "${state.question}" from the following text.
-Text: ${source.excerpt}
+        const textToProcess = source.full_content || source.excerpt || "";
+        if (!textToProcess.trim()) continue;
 
-Only extract information explicitly stated in the text.`;
+        const prompt = `Extract up to 3 key factual claims answering "${state.question}" from the following text.
+Text: ${textToProcess.substring(0, 25000)}
+
+Only extract information explicitly stated in the text. If page numbers (e.g. '--- Page X ---') or section headers are present, include them in location_info.`;
         
         const result = await structuredLlm.invoke(prompt);
         if (result && result.claims) {
           for (const c of result.claims) {
-            const ev = await db.saveEvidence(source.task_id, state.sessionId, source.id, c.quote, c.confidence);
+            const ev = await db.saveEvidence(source.task_id, state.sessionId, source.id, c.quote, c.confidence, c.location_info);
             const savedClaim = await db.saveClaim(state.sessionId, ev.id, source.id, c.claim, c.confidence);
             newClaims.push(savedClaim);
           }

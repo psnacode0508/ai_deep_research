@@ -110,7 +110,7 @@ export async function updateTaskStatus(taskId: string, status: string, errorMsg?
   }
 }
 
-export async function saveSource(taskId: string, sessionId: string, source: any) {
+export async function saveSource(taskId: string | null, sessionId: string, source: any) {
   const { data, error } = await supabaseAdmin
     .from("research_sources")
     .insert({
@@ -121,19 +121,26 @@ export async function saveSource(taskId: string, sessionId: string, source: any)
       domain: source.domain,
       excerpt: source.excerpt,
       full_content: source.full_content,
-      relevance_score: source.relevance_score || null
+      relevance_score: source.relevance_score || null,
+      source_category: source.source_category || null,
+      reliability_rationale: source.reliability_rationale || null,
+      is_primary_source: source.is_primary_source || false,
+      content_type: source.content_type || 'text/html',
+      source_type: source.source_type || 'web_search'
     })
     .select()
     .single();
     
   if (error) throw new Error(`Failed to save source: ${error.message}`);
   
-  await recordEvent(sessionId, "task.source_found", `Found source: ${source.title || source.domain}`, taskId, { url: source.url });
+  if (taskId) {
+    await recordEvent(sessionId, "task.source_found", `Found source: ${source.title || source.domain}`, taskId, { url: source.url });
+  }
   
   return data;
 }
 
-export async function saveEvidence(taskId: string, sessionId: string, sourceId: string, content: string, relevance?: number) {
+export async function saveEvidence(taskId: string, sessionId: string, sourceId: string, content: string, relevance?: number, locationInfo?: string) {
   const { data, error } = await supabaseAdmin
     .from("evidence")
     .insert({
@@ -141,15 +148,26 @@ export async function saveEvidence(taskId: string, sessionId: string, sourceId: 
       session_id: sessionId,
       source_id: sourceId,
       content,
-      relevance_score: relevance || null
+      relevance_score: relevance || null,
+      location_info: locationInfo || null
     })
     .select()
     .single();
     
   if (error) throw new Error(`Failed to save evidence: ${error.message}`);
   
-  await recordEvent(sessionId, "task.evidence_extracted", "Extracted evidence from source", taskId, { sourceId, relevance });
+  await recordEvent(sessionId, "task.evidence_extracted", "Extracted evidence from source", taskId, { sourceId, relevance, locationInfo });
   
+  return data;
+}
+
+export async function getSessionSources(sessionId: string) {
+  const { data, error } = await supabaseAdmin
+    .from("research_sources")
+    .select("*")
+    .eq("session_id", sessionId);
+    
+  if (error) throw new Error(`Failed to fetch sources: ${error.message}`);
   return data;
 }
 

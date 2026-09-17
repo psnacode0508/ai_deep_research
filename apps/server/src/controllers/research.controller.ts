@@ -364,3 +364,92 @@ export async function rejectReport(req: Request, res: Response): Promise<void> {
     res.status(500).json({ success: false, error: { code: "INTERNAL_ERROR", message: "Error" } });
   }
 }
+
+export async function attachSource(req: Request, res: Response): Promise<void> {
+  try {
+    const user = req.user;
+    const { id } = req.params;
+
+    if (!user) {
+      res.status(401).json({ success: false, error: { code: "UNAUTHORIZED", message: "User not authenticated" } });
+      return;
+    }
+
+    // Enforce ownership
+    const { data: session, error: authError } = await supabaseAdmin
+      .from("research_sessions")
+      .select("id")
+      .eq("id", id)
+      .eq("user_id", user.id)
+      .single();
+
+    if (authError || !session) {
+      res.status(404).json({ success: false, error: { code: "NOT_FOUND", message: "Research session not found" } });
+      return;
+    }
+
+    const { fetchUrlSecurely, parsePdfBuffer } = await import("../ingestion");
+    const { saveSource } = await import("../engine/db");
+
+    let sourceData: any = null;
+
+    if (req.file) {
+      if (req.file.mimetype !== "application/pdf") {
+        res.status(400).json({ success: false, error: { code: "BAD_REQUEST", message: "Only PDF uploads are supported" } });
+        return;
+      }
+      const ingested = await parsePdfBuffer(req.file.buffer, req.file.originalname);
+      sourceData = {
+        url: ingested.url,
+        title: ingested.title,
+        domain: ingested.domain,
+        excerpt: ingested.content.substring(0, 500) + '...',
+        full_content: ingested.content,
+        relevance_score: 1.0,
+        source_category: ingested.sourceCategory,
+        reliability_rationale: ingested.reliabilityRationale,
+        is_primary_source: ingested.isPrimarySource,
+        content_type: ingested.contentType,
+        source_type: 'user_pdf'
+      };
+    } else if (req.body.url) {
+      const ingested = await fetchUrlSecurely(req.body.url);
+      sourceData = {
+        url: ingested.url,
+        title: ingested.title,
+        domain: ingested.domain,
+        excerpt: ingested.content.substring(0, 500) + '...',
+        full_content: ingested.content,
+        relevance_score: 1.0,
+        source_category: ingested.sourceCategory,
+        reliability_rationale: ingested.reliabilityRationale,
+        is_primary_source: ingested.isPrimarySource,
+        content_type: ingested.contentType,
+        source_type: 'user_url'
+      };
+    } else if (req.body.text) {
+      sourceData = {
+        url: 'upload://user-text',
+        title: 'User Provided Text',
+        domain: 'user_input',
+        excerpt: req.body.text.substring(0, 500) + '...',
+        full_content: req.body.text,
+        relevance_score: 1.0,
+        source_category: 'unknown',
+        reliability_rationale: 'User provided raw text',
+        is_primary_source: false,
+        content_type: 'text/plain',
+        source_type: 'user_text'
+      };
+    } else {
+      res.status(400).json({ success: false, error: { code: "BAD_REQUEST", message: "Must provide a file, url, or text" } });
+      return;
+    }
+
+    const saved = await saveSource(null, id, sourceData);
+    res.status(200).json({ success: true, data: saved });
+  } catch (error: any) {
+    console.error("[ResearchController] Error attaching source:", error);
+    res.status(500).json({ success: false, error: { code: "INTERNAL_ERROR", message: error.message || "Failed to attach source" } });
+  }
+}

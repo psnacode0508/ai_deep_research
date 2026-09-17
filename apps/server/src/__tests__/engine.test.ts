@@ -8,7 +8,11 @@ vi.mock('../engine/db', () => ({
   saveSource: vi.fn().mockResolvedValue({ id: 'src-1' }),
   saveEvidence: vi.fn().mockResolvedValue({ id: 'ev-1' }),
   saveClaim: vi.fn().mockResolvedValue({ id: 'cl-1' }),
-  getSessionClaims: vi.fn().mockResolvedValue([{ id: 'cl-1', content: 'test claim', source: { url: 'http://test.com' } }]),
+  getSessionSources: vi.fn().mockResolvedValue([
+    { id: 'source-1', url: 'http://test.com', full_content: 'test content' },
+    { id: 'source-2', url: 'http://example.com', full_content: 'new content' }
+  ]),
+  getSessionClaims: vi.fn().mockResolvedValue([{ id: 'cl-1', content: 'test claim', source_id: 'source-1', source: { url: 'http://test.com' } }]),
   saveSessionReport: vi.fn(),
 }));
 

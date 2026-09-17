@@ -21,6 +21,11 @@ function NewResearchPage(): React.JSX.Element {
   const [requirePlanApproval, setRequirePlanApproval] = useState(false);
   const [requireFinalApproval, setRequireFinalApproval] = useState(false);
   
+  // External Sources
+  const [externalUrls, setExternalUrls] = useState<string>("");
+  const [pdfFile, setPdfFile] = useState<File | null>(null);
+  const [rawText, setRawText] = useState<string>("");
+  
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState("");
 
@@ -66,7 +71,45 @@ function NewResearchPage(): React.JSX.Element {
         throw new Error(data.error?.message || "Failed to create research session");
       }
 
-      navigate(`/research/${data.data.id}`);
+      const sessionId = data.data.id;
+
+      // Upload external sources if any
+      const urls = externalUrls.split(",").map(u => u.trim()).filter(Boolean);
+      for (const url of urls) {
+        await fetch(`${API_URL}/api/v1/research/${sessionId}/sources`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${session.access_token}`,
+          },
+          body: JSON.stringify({ url }),
+        });
+      }
+
+      if (rawText.trim()) {
+        await fetch(`${API_URL}/api/v1/research/${sessionId}/sources`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${session.access_token}`,
+          },
+          body: JSON.stringify({ text: rawText.trim() }),
+        });
+      }
+
+      if (pdfFile) {
+        const formData = new FormData();
+        formData.append("file", pdfFile);
+        await fetch(`${API_URL}/api/v1/research/${sessionId}/sources`, {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${session.access_token}`,
+          },
+          body: formData,
+        });
+      }
+
+      navigate(`/research/${sessionId}`);
     } catch (err: any) {
       setError(err.message || "An unexpected error occurred");
       setIsSubmitting(false);
@@ -254,6 +297,64 @@ function NewResearchPage(): React.JSX.Element {
                     <div className="text-xs text-[var(--color-muted)]">Pause before synthesizing the final report.</div>
                   </div>
                 </label>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="mb-6">
+            <CardHeader>
+              <CardTitle>External Sources (Optional)</CardTitle>
+              <CardDescription>
+                Provide your own sources to be analyzed alongside automated research.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              <div className="flex flex-col gap-2">
+                <label htmlFor="externalUrls" className="text-sm font-medium text-white">
+                  Specific URLs
+                </label>
+                <input
+                  id="externalUrls"
+                  type="text"
+                  value={externalUrls}
+                  onChange={(e) => setExternalUrls(e.target.value)}
+                  disabled={isSubmitting}
+                  className="w-full rounded-md bg-[var(--color-surface-2)] border border-[var(--color-border)] px-3 py-2 text-sm text-white focus:outline-none focus:ring-1 focus:ring-brand-500"
+                  placeholder="e.g. https://example.com/report, https://example.org/study (comma separated)"
+                />
+              </div>
+
+              <div className="flex flex-col gap-2">
+                <label className="text-sm font-medium text-white">
+                  Upload PDF Document
+                </label>
+                <input
+                  type="file"
+                  accept="application/pdf"
+                  onChange={(e) => setPdfFile(e.target.files?.[0] || null)}
+                  disabled={isSubmitting}
+                  className="w-full text-sm text-[var(--color-muted)] file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-brand-500/10 file:text-brand-400 hover:file:bg-brand-500/20"
+                />
+                {pdfFile && (
+                  <div className="text-xs text-brand-400 mt-1">
+                    Attached: {pdfFile.name} ({(pdfFile.size / 1024 / 1024).toFixed(2)} MB)
+                  </div>
+                )}
+              </div>
+
+              <div className="flex flex-col gap-2">
+                <label htmlFor="rawText" className="text-sm font-medium text-white">
+                  Raw Text / Context
+                </label>
+                <textarea
+                  id="rawText"
+                  rows={4}
+                  value={rawText}
+                  onChange={(e) => setRawText(e.target.value)}
+                  disabled={isSubmitting}
+                  className="w-full rounded-lg bg-[var(--color-surface-2)] border border-[var(--color-border)] p-3 text-sm text-white placeholder:text-[var(--color-muted)] resize-none focus:outline-none focus:ring-1 focus:ring-brand-500"
+                  placeholder="Paste any raw text, notes, or internal context you want the engine to consider."
+                />
               </div>
             </CardContent>
           </Card>
