@@ -20,8 +20,16 @@ export async function getHealth(req: Request, res: Response): Promise<void> {
     // Check DB health
     const { error } = await supabaseAdmin.from("profiles").select("id").limit(1);
     if (error) throw error;
-  } catch (err) {
+  } catch (err: any) {
     dbStatus = "error";
+    // Safe diagnostic logging for Render - NO secrets
+    console.error("[HealthCheck] Database error:", {
+      message: err?.message || String(err),
+      code: err?.code,
+      details: err?.details,
+      hint: err?.hint,
+      name: err?.name,
+    });
   }
 
   try {
