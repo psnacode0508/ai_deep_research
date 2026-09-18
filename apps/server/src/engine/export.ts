@@ -15,6 +15,29 @@ const fonts = {
   }
 };
 
+export function buildMarkdownContent(report: any, evalData: any, citations: any[]): string {
+  let md = `# ${report.title || "Research Report"}\n\n`;
+
+  // Include evaluation metadata if available
+  if (evalData?.quality_metrics?.evidenceCoverage) {
+    md += `*Evidence Coverage: ${Math.round(evalData.quality_metrics.evidenceCoverage * 100)}% | Citation Completeness: ${Math.round((evalData.quality_metrics.citationCompleteness || 0) * 100)}%*\n\n`;
+  }
+
+  md += `${report.content}\n\n`;
+
+  if (citations && citations.length > 0) {
+    md += `## References\n\n`;
+    citations.forEach(cit => {
+      const src = cit.source || cit.research_sources; // handle variations in join aliases
+      if (src) {
+        md += `[${cit.citation_number}] [${src.title || src.url}](${src.url})\n`;
+      }
+    });
+  }
+
+  return md;
+}
+
 /**
  * Builds a canonical Markdown string combining the finalized report content,
  * citations, and metadata.
@@ -49,26 +72,7 @@ export async function buildCanonicalMarkdown(sessionId: string, userId: string):
     .eq("report_id", report.id)
     .order("citation_number", { ascending: true });
 
-  let md = `# ${report.title || "Research Report"}\n\n`;
-
-  // Include evaluation metadata if available
-  if (evalData?.quality_metrics?.evidenceCoverage) {
-    md += `*Evidence Coverage: ${Math.round(evalData.quality_metrics.evidenceCoverage * 100)}% | Citation Completeness: ${Math.round((evalData.quality_metrics.citationCompleteness || 0) * 100)}%*\n\n`;
-  }
-
-  md += `${report.content}\n\n`;
-
-  if (citations && citations.length > 0) {
-    md += `## References\n\n`;
-    citations.forEach(cit => {
-      const src = cit.source;
-      if (src) {
-        md += `[${cit.citation_number}] [${src.title || src.url}](${src.url})\n`;
-      }
-    });
-  }
-
-  return md;
+  return buildMarkdownContent(report, evalData, citations || []);
 }
 
 /**

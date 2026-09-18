@@ -11,6 +11,7 @@ import Spinner from "@/components/ui/Spinner";
 // Lazy-loaded routes for code splitting
 const HomePage = React.lazy(() => import("@/pages/HomePage"));
 const NotFoundPage = React.lazy(() => import("@/pages/NotFoundPage"));
+const PublicSharedReportPage = React.lazy(() => import("@/pages/PublicSharedReportPage").then(m => ({ default: m.PublicSharedReportPage })));
 
 // Auth pages
 const LoginPage = React.lazy(() => import("@/pages/auth/LoginPage"));
@@ -50,6 +51,7 @@ function App(): React.JSX.Element {
               <Route path="/verify-email" element={<VerifyEmailPage />} />
               <Route path="/reset-password" element={<ResetPasswordPage />} />
               <Route path="/auth/callback" element={<AuthCallbackPage />} />
+              <Route path="/share/:token" element={<PublicSharedReportPage />} />
 
               {/* ── Public-only routes (redirect if authed) ─── */}
               <Route element={<PublicOnlyRoute />}>

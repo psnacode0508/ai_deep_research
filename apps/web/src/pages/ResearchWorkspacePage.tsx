@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { ArrowLeft, Clock, Settings, Brain, Search, XCircle, Play, ListTodo, StopCircle, Download } from "lucide-react";
+import { ArrowLeft, Clock, Settings, Brain, Search, XCircle, Play, ListTodo, StopCircle, Download, LinkIcon } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
@@ -8,6 +8,7 @@ import Spinner from "@/components/ui/Spinner";
 import { supabase } from "@/lib/supabase";
 import { ResearchSession, ResearchStatus, ResearchEvent } from "@deepresearch/shared";
 import { EvaluationSummary } from "@/components/EvaluationSummary";
+import { ShareModal } from "@/components/ui/ShareModal";
 
 const API_URL = import.meta.env.VITE_API_URL || "http://localhost:4000";
 
@@ -20,6 +21,7 @@ function ResearchWorkspacePage(): React.JSX.Element {
   const [error, setError] = useState("");
   const [events, setEvents] = useState<ResearchEvent[]>([]);
   const [connectionStatus, setConnectionStatus] = useState<"connecting" | "connected" | "reconnecting" | "disconnected">("connecting");
+  const [showShareModal, setShowShareModal] = useState(false);
   const eventSourceRef = useRef<EventSource | null>(null);
   const reconnectTimeout = useRef<NodeJS.Timeout | undefined>(undefined);
 
@@ -279,6 +281,9 @@ function ResearchWorkspacePage(): React.JSX.Element {
           
           {session.status === ResearchStatus.Complete && (
             <div className="flex gap-2 mr-2">
+              <Button onClick={() => setShowShareModal(true)} variant="outline" size="sm" className="h-8 text-xs gap-1 border-brand-500/50 text-brand-400 hover:bg-brand-500/10">
+                <LinkIcon size={14} /> Share
+              </Button>
               <Button onClick={() => handleExport('markdown')} variant="outline" size="sm" className="h-8 text-xs gap-1">
                 <Download size={14} /> MD
               </Button>
@@ -440,6 +445,12 @@ function ResearchWorkspacePage(): React.JSX.Element {
 
         </div>
       </div>
+
+      <ShareModal 
+        sessionId={id!} 
+        isOpen={showShareModal} 
+        onClose={() => setShowShareModal(false)} 
+      />
     </div>
   );
 }

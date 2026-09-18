@@ -10,6 +10,7 @@ import { errorHandler } from "./middleware/errorHandler";
 import healthRouter from "./routes/health.routes";
 import authRouter from "./routes/auth.routes";
 import researchRouter from "./routes/research.routes";
+import shareRouter from "./routes/share.routes";
 
 // ─────────────────────────────────────────────
 // Create Express application
@@ -52,6 +53,7 @@ app.use(requestLogger);
 app.use("/health", healthRouter);
 app.use("/api/v1/auth", authRouter);
 app.use("/api/v1/research", researchRouter);
+app.use("/api/v1/share", shareRouter);
 
 // Future routes will be mounted here, e.g.:
 //   app.use("/api/v1/sessions", sessionsRouter);
