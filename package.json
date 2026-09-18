@@ -10,8 +10,9 @@
   "scripts": {
     "dev:web": "npm run dev --workspace=apps/web",
     "dev:server": "npm run dev --workspace=apps/server",
-    "build:web": "npm run build --workspace=apps/web",
-    "build:server": "npm run build --workspace=apps/server",
+    "build:shared": "npm run build --workspace=packages/shared",
+    "build:web": "npm run build:shared && npm run build --workspace=apps/web",
+    "build:server": "npm run build:shared && npm run build --workspace=apps/server",
     "type-check": "npm run type-check --workspace=packages/shared && npm run type-check --workspace=apps/server && npm run type-check --workspace=apps/web",
     "clean": "npx rimraf apps/*/dist apps/*/node_modules packages/*/dist packages/*/node_modules node_modules"
   },
