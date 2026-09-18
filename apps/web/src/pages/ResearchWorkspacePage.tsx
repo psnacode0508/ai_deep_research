@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/Badge";
 import Spinner from "@/components/ui/Spinner";
 import { supabase } from "@/lib/supabase";
 import { ResearchSession, ResearchStatus, ResearchEvent } from "@deepresearch/shared";
+import { EvaluationSummary } from "@/components/EvaluationSummary";
 
 const API_URL = import.meta.env.VITE_API_URL || "http://localhost:4000";
 
@@ -386,6 +387,10 @@ function ResearchWorkspacePage(): React.JSX.Element {
                           View Report
                        </Button>
                     </div>
+                  )}
+
+                  {(session.status === ResearchStatus.AwaitingFinalApproval || session.status === ResearchStatus.Complete) && (
+                    <EvaluationSummary sessionId={session.id} />
                   )}
               </CardContent>
             </Card>

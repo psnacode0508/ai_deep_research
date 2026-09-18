@@ -4,6 +4,8 @@ import { tavily } from "@tavily/core";
 import { z } from "zod";
 import { config } from "../config/env";
 import * as db from "./db";
+import { supabaseAdmin } from "../db/supabase";
+import { evaluateResearchSession } from "./evaluation";
 import { ResearchStatus } from "@deepresearch/shared";
 
 // Ensure keys exist before creating clients
@@ -352,6 +354,27 @@ Output the report in Markdown format.`;
 }
 
 /**
+ * 4.5 Evaluate Node
+ */
+async function evaluateResearch(state: ResearchState) {
+  try {
+    const { data: session } = await supabaseAdmin
+      .from("research_sessions")
+      .select("user_id")
+      .eq("id", state.sessionId)
+      .single();
+      
+    if (session) {
+      await evaluateResearchSession(state.sessionId, session.user_id);
+    }
+    return {};
+  } catch (error: any) {
+    console.error("Evaluation failed", error);
+    return {}; // Do not fail the whole session just because evaluation failed
+  }
+}
+
+/**
  * 5. Finalize Node
  */
 async function finalizeSession(state: ResearchState) {
@@ -393,13 +416,13 @@ function shouldContinueFromSynthesis(state: ResearchState) {
   return "finalize_session";
 }
 
-// Build Graph
 const workflow = new StateGraph<ResearchState>({ channels: stateChannels })
   .addNode("plan_research", planResearch)
   .addNode("execute_search", executeSearch)
   .addNode("extract_evidence", extractEvidence)
   .addNode("reflect_on_evidence", reflectOnEvidence)
   .addNode("synthesize_report", synthesizeReport)
+  .addNode("evaluate_research", evaluateResearch)
   .addNode("finalize_session", finalizeSession)
   .addNode("fail", async (state: ResearchState) => {
     await db.updateSessionStatus(state.sessionId, ResearchStatus.Failed, state.error);
@@ -458,7 +481,24 @@ workflow.addConditionalEdges("reflect_on_evidence", shouldContinueFromReflect, {
   execute_search: "execute_search",
   synthesize_report: "synthesize_report"
 });
-workflow.addConditionalEdges("synthesize_report", shouldContinueFromSynthesis, {
+
+function shouldContinueFromSynthesisLocal(state: ResearchState) {
+  if (state.error) return "fail";
+  return "evaluate_research";
+}
+
+workflow.addConditionalEdges("synthesize_report", shouldContinueFromSynthesisLocal, {
+  fail: "fail",
+  evaluate_research: "evaluate_research"
+});
+
+function shouldContinueFromEvaluate(state: ResearchState) {
+  if (state.error) return "fail";
+  if (state.metadata.requireFinalApproval) return "pause_for_approval";
+  return "finalize_session";
+}
+
+workflow.addConditionalEdges("evaluate_research", shouldContinueFromEvaluate, {
   fail: "fail",
   finalize_session: "finalize_session",
   pause_for_approval: END

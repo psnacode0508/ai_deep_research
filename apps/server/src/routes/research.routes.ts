@@ -11,7 +11,8 @@ import {
   rejectPlan,
   approveReport,
   rejectReport,
-  attachSource
+  attachSource,
+  getEvaluation
 } from "../controllers/research.controller";
 import multer from "multer";
 
@@ -29,6 +30,7 @@ router.post("/", createResearchSession);
 router.get("/", listResearchSessions);
 router.get("/:id", getResearchSession);
 router.get("/:id/events", streamResearchEvents);
+router.get("/:id/evaluation", getEvaluation);
 router.post("/:id/cancel", cancelResearchSession);
 router.post("/:id/plan/approve", approvePlan);
 router.post("/:id/plan/reject", rejectPlan);

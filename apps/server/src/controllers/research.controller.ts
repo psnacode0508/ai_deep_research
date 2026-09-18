@@ -106,6 +106,60 @@ export async function getResearchSession(req: Request, res: Response): Promise<v
 }
 
 /**
+ * Gets the evaluation for a research session.
+ * GET /api/v1/research/:id/evaluation
+ */
+export async function getEvaluation(req: Request, res: Response): Promise<void> {
+  try {
+    const user = req.user;
+    const { id } = req.params;
+
+    if (!user) {
+      res.status(401).json({ success: false, error: { code: "UNAUTHORIZED", message: "User not authenticated" } });
+      return;
+    }
+
+    const { data: session, error: authError } = await supabaseAdmin
+      .from("research_sessions")
+      .select("id")
+      .eq("id", id)
+      .eq("user_id", user.id)
+      .single();
+
+    if (authError || !session) {
+      res.status(404).json({ success: false, error: { code: "NOT_FOUND", message: "Research session not found" } });
+      return;
+    }
+
+    const { data: evaluation, error } = await supabaseAdmin
+      .from("research_evaluations")
+      .select("*")
+      .eq("session_id", id)
+      .single();
+
+    if (error || !evaluation) {
+      res.status(404).json({ success: false, error: { code: "NOT_FOUND", message: "Evaluation not found" } });
+      return;
+    }
+
+    const formattedData = {
+      id: evaluation.id,
+      sessionId: evaluation.session_id,
+      qualityMetrics: evaluation.quality_metrics,
+      sourceMetrics: evaluation.source_metrics,
+      performanceMetrics: evaluation.performance_metrics,
+      usageMetrics: evaluation.usage_metrics,
+      createdAt: evaluation.created_at
+    };
+
+    res.status(200).json({ success: true, data: formattedData });
+  } catch (error) {
+    console.error("[ResearchController] Unexpected error getting evaluation:", error);
+    res.status(500).json({ success: false, error: { code: "INTERNAL_ERROR", message: "Unexpected error" } });
+  }
+}
+
+/**
  * Lists all research sessions for the user.
  * GET /api/v1/research
  */

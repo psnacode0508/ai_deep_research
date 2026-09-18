@@ -194,6 +194,7 @@ export type ResearchEventType =
   | "evaluation.started"
   | "evaluation.contradiction_detected"
   | "evaluation.completed"
+  | "evaluation.failed"
   | "reflection.started"
   | "reflection.gap_identified"
   | "reflection.completed"
@@ -255,3 +256,59 @@ export interface ApiErrorResponse {
     message: string;
   };
 }
+
+// ─────────────────────────────────────────────
+// Evaluation & Metrics types
+// ─────────────────────────────────────────────
+
+export interface QualityMetrics {
+  evidenceCoverage: number;
+  claimToEvidenceLinkage: number;
+  citationCompleteness: number;
+  citationValidity: number;
+  numberOfClaims: number;
+  numberOfEvidenceItems: number;
+  numberOfSources: number;
+  contradictionCount: number;
+  unresolvedContradictionCount: number;
+  identifiedResearchGaps: number;
+  followUpIterationCount: number;
+}
+
+export interface SourceQualityMetrics {
+  sourceDiversity: number;
+  categoryDistribution: Record<string, number>;
+}
+
+export interface PerformanceMetrics {
+  totalDurationMs: number;
+  planningDurationMs: number;
+  searchDurationMs: number;
+  extractionDurationMs: number;
+  synthesisDurationMs: number;
+  numberOfSearches: number;
+  numberOfFollowUpSearches: number;
+  workerRetries: number;
+  failedTasks: number;
+}
+
+export interface UsageMetricsData {
+  geminiRequestCount: number | null;
+  inputTokens: number | null;
+  outputTokens: number | null;
+  tavilySearches: number | null;
+  estimatedGeminiCost: number | null;
+  estimatedTavilyCost: number | null;
+  totalEstimatedCost: number | null;
+}
+
+export interface ResearchEvaluation {
+  id: string;
+  sessionId: string;
+  qualityMetrics: QualityMetrics;
+  sourceMetrics: SourceQualityMetrics;
+  performanceMetrics: PerformanceMetrics;
+  usageMetrics: UsageMetricsData;
+  createdAt: string;
+}
+
