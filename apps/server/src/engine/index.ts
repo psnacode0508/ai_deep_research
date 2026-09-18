@@ -46,6 +46,7 @@ export class ResearchEngine {
    */
   static async startResearch(sessionId: string): Promise<void> {
     console.log(`[Engine] startResearch called for session: ${sessionId}`);
+    const startMs = Date.now();
     
     try {
       const session = await this.getSession(sessionId);
@@ -58,9 +59,21 @@ export class ResearchEngine {
         currentStatus: session.status,
       });
       
-      console.log(`[Engine] Execution completed for session: ${sessionId}`);
+      const durationSec = (Date.now() - startMs) / 1000;
+      console.log(`[Engine] Execution completed for session: ${sessionId} in ${durationSec}s`);
+      
+      // Record observability metric
+      await supabaseAdmin.from("usage_metrics").insert({
+        user_id: session.user_id,
+        session_id: sessionId,
+        metric_type: "research_duration_seconds",
+        value: durationSec,
+        metadata: { success: true }
+      });
     } catch (error: any) {
-      console.error(`[Engine] Critical error running graph for ${sessionId}:`, error);
+      const durationSec = (Date.now() - startMs) / 1000;
+      console.error(`[Engine] Critical error running graph for ${sessionId} after ${durationSec}s:`, error);
+      
       await supabaseAdmin
         .from("research_sessions")
         .update({ 
@@ -68,6 +81,20 @@ export class ResearchEngine {
           error_message: error.message 
         })
         .eq("id", sessionId);
+
+      // Record failed observability metric
+      try {
+        const session = await this.getSession(sessionId);
+        await supabaseAdmin.from("usage_metrics").insert({
+          user_id: session.user_id,
+          session_id: sessionId,
+          metric_type: "research_duration_seconds",
+          value: durationSec,
+          metadata: { success: false, error: error.message }
+        });
+      } catch (e) {
+        // ignore if we can't fetch session for metric
+      }
     }
   }
 

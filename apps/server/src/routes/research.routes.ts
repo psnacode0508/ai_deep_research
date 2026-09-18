@@ -29,12 +29,14 @@ const upload = multer({
   storage: multer.memoryStorage()
 });
 
+import { strictRateLimiter } from "../middleware/rateLimiter";
+
 const router = Router();
 
 // All research routes require authentication
 router.use(requireAuth);
 
-router.post("/", createResearchSession);
+router.post("/", strictRateLimiter, createResearchSession);
 router.get("/", listResearchSessions);
 router.get("/:id", getResearchSession);
 router.get("/:id/events", streamResearchEvents);
@@ -44,7 +46,7 @@ router.post("/:id/plan/approve", approvePlan);
 router.post("/:id/plan/reject", rejectPlan);
 router.post("/:id/report/approve", approveReport);
 router.post("/:id/report/reject", rejectReport);
-router.post("/:id/sources", upload.single("file"), attachSource);
+router.post("/:id/sources", strictRateLimiter, upload.single("file"), attachSource);
 router.delete("/:id", deleteResearchSession);
 
 // Export

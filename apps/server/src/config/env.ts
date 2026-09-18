@@ -36,7 +36,8 @@ export const config = {
   },
   cors: {
     // In production, restrict to the deployed frontend URL.
-    frontendUrl: optionalEnv("FRONTEND_URL", "http://localhost:5173"),
+    // Allow comma-separated lists for multiple origins.
+    frontendUrls: optionalEnv("FRONTEND_URL", "http://localhost:5173").split(",").map(s => s.trim()),
   },
 
   // ── Supabase ──────────────────────────────────────────
@@ -63,6 +64,12 @@ export const config = {
   redis: {
     url: optionalEnv("REDIS_URL", "redis://localhost:6379"),
   },
+
+  // ── Security / Rate Limiting ────────────────────────────
+  rateLimit: {
+    windowMs: parseInt(optionalEnv("RATE_LIMIT_WINDOW_MS", "900000"), 10), // 15 minutes default
+    maxRequests: parseInt(optionalEnv("RATE_LIMIT_MAX_REQUESTS", "100"), 10),
+  }
 } as const;
 
 export type Config = typeof config;

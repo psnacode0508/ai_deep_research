@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { requireAuth } from "../middleware/auth.middleware";
 import { getMe } from "../controllers/auth.controller";
+import { strictRateLimiter } from "../middleware/rateLimiter";
 
 const router = Router();
 
@@ -9,6 +10,6 @@ const router = Router();
  * Returns the authenticated user's safe profile.
  * Requires a valid Supabase JWT in Authorization: Bearer <token>
  */
-router.get("/me", requireAuth, getMe);
+router.get("/me", strictRateLimiter, requireAuth, getMe);
 
 export default router;

@@ -12,10 +12,15 @@ import authRouter from "./routes/auth.routes";
 import researchRouter from "./routes/research.routes";
 import shareRouter from "./routes/share.routes";
 
+import { globalRateLimiter, strictRateLimiter } from "./middleware/rateLimiter";
+
 // ─────────────────────────────────────────────
 // Create Express application
 // ─────────────────────────────────────────────
 const app = express();
+
+// Trust proxy if we are behind a reverse proxy (e.g. NGINX, Heroku, AWS ELB)
+app.set('trust proxy', 1);
 
 // ─────────────────────────────────────────────
 // Security middleware
@@ -29,12 +34,14 @@ app.use(
 
 app.use(
   cors({
-    origin: config.cors.frontendUrl,
+    origin: config.cors.frontendUrls,
     methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allowedHeaders: ["Content-Type", "Authorization"],
     credentials: true,
   })
 );
+
+app.use(globalRateLimiter);
 
 // ─────────────────────────────────────────────
 // Parsing middleware
