@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { ArrowLeft, Clock, Settings, Brain, Search, XCircle, Play, ListTodo, StopCircle, Download, LinkIcon } from "lucide-react";
+import { ArrowLeft, Clock, Settings, Brain, Search, XCircle, Play, ListTodo, StopCircle, Download, LinkIcon, FileText } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
@@ -9,6 +9,7 @@ import { supabase } from "@/lib/supabase";
 import { ResearchSession, ResearchStatus, ResearchEvent } from "@deepresearch/shared";
 import { EvaluationSummary } from "@/components/EvaluationSummary";
 import { ShareModal } from "@/components/ui/ShareModal";
+import ReactMarkdown from "react-markdown";
 
 const API_URL = import.meta.env.VITE_API_URL || "http://localhost:4000";
 
@@ -355,15 +356,25 @@ function ResearchWorkspacePage(): React.JSX.Element {
               <CardHeader className="py-4 border-b border-white/5 shrink-0 flex flex-row items-center justify-between">
                 <CardTitle className="text-sm flex items-center gap-2 text-brand-400">
                   <Brain size={16} />
-                  Engine Activity
+                  {session.status === ResearchStatus.Complete ? "Final Report" : "Engine Activity"}
                 </CardTitle>
                 <div className="flex items-center gap-4 text-xs font-mono text-[var(--color-muted)]">
-                  <span className="flex items-center gap-1.5"><Clock size={14}/> Live Feed</span>
-                  <span className="flex items-center gap-1.5"><Play size={14} className="text-brand-400"/> Iteration {iterationCount}/{session.metadata.maxIterations}</span>
+                  {session.status === ResearchStatus.Complete ? (
+                    <span className="flex items-center gap-1.5"><FileText size={14}/> {session.report?.length} chars</span>
+                  ) : (
+                    <>
+                      <span className="flex items-center gap-1.5"><Clock size={14}/> Live Feed</span>
+                      <span className="flex items-center gap-1.5"><Play size={14} className="text-brand-400"/> Iteration {iterationCount}/{session.metadata.maxIterations}</span>
+                    </>
+                  )}
                 </div>
               </CardHeader>
               <CardContent className="flex-1 overflow-y-auto p-6 font-mono text-xs text-[var(--color-muted)] flex flex-col gap-3">
-                {events.length === 0 ? (
+                {session.status === ResearchStatus.Complete && session.report ? (
+                  <article className="prose prose-invert prose-sm max-w-none text-white prose-a:text-brand-400 prose-headings:font-semibold">
+                    <ReactMarkdown>{session.report}</ReactMarkdown>
+                  </article>
+                ) : events.length === 0 ? (
                   <div className="text-center mt-10">
                     <p className="text-sm mb-2 text-white">Engine is ready to start.</p>
                     <p>Connecting to stream...</p>
@@ -419,20 +430,19 @@ function ResearchWorkspacePage(): React.JSX.Element {
                   </div>
                   
                   {session.status === ResearchStatus.AwaitingFinalApproval && session.report && (
-                    <div className="mt-4 flex flex-col items-center justify-center p-4 bg-yellow-500/10 border border-yellow-500/20 rounded-lg">
+                    <div className="mt-4 flex flex-col items-center justify-center p-4 bg-yellow-500/10 border border-yellow-500/20 rounded-lg text-center">
                        <span className="text-yellow-400 font-medium text-sm mb-2">Final Report Ready for Review</span>
+                       <p className="text-xs text-[var(--color-muted)] mb-4">Please review the report preview and evaluation metrics before finalizing.</p>
                        <div className="flex gap-2">
-                         <Button size="sm" className="bg-yellow-500 hover:bg-yellow-600 text-black" onClick={() => handleApproval('report', 'approve')}>Approve Report</Button>
+                         <Button size="sm" className="bg-yellow-500 hover:bg-yellow-600 text-black" onClick={() => handleApproval('report', 'approve')}>Approve & Finalize</Button>
                          <Button size="sm" variant="destructive" onClick={() => handleApproval('report', 'reject')}>Reject</Button>
                        </div>
                     </div>
                   )}
                   {session.status === ResearchStatus.Complete && session.report && (
-                    <div className="mt-4 flex flex-col items-center justify-center p-4 bg-green-500/10 border border-green-500/20 rounded-lg">
-                       <span className="text-green-400 font-medium text-sm mb-2">Report Ready</span>
-                       <Button size="sm" onClick={() => alert("Preview report here (UI to be built)")}>
-                          View Report
-                       </Button>
+                    <div className="mt-4 flex flex-col items-center justify-center p-4 bg-green-500/10 border border-green-500/20 rounded-lg text-center">
+                       <span className="text-green-400 font-medium text-sm mb-1">Research Complete</span>
+                       <p className="text-xs text-green-300/70">The final report is available in the center panel and ready to be shared or exported.</p>
                     </div>
                   )}
 

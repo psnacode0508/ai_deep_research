@@ -280,7 +280,7 @@ function NewResearchPage(): React.JSX.Element {
                   />
                   <div>
                     <div className="text-sm font-medium text-white">Require Plan Approval</div>
-                    <div className="text-xs text-[var(--color-muted)]">Pause engine after planning to allow manual review.</div>
+                    <div className="text-xs text-[var(--color-muted)]">Pause the engine after initial planning to allow manual review and editing of sub-tasks. Highly recommended for complex queries.</div>
                   </div>
                 </label>
                 
@@ -294,7 +294,7 @@ function NewResearchPage(): React.JSX.Element {
                   />
                   <div>
                     <div className="text-sm font-medium text-white">Require Final Approval</div>
-                    <div className="text-xs text-[var(--color-muted)]">Pause before synthesizing the final report.</div>
+                    <div className="text-xs text-[var(--color-muted)]">Pause before generating the final report. Allows you to review extracted evidence and evaluation metrics first.</div>
                   </div>
                 </label>
               </div>

@@ -203,9 +203,15 @@ function HistoryPage(): React.JSX.Element {
               <CardContent className="p-12 text-center flex flex-col items-center">
                 <Clock size={32} className="text-[var(--color-muted)] mb-4" />
                 <h3 className="text-lg font-medium text-white mb-2">No history found</h3>
-                <p className="text-sm text-[var(--color-muted)] max-w-sm">
-                  {debouncedSearch || statusFilter ? "No sessions match your filters." : "You haven't started any research yet."}
+                <p className="text-sm text-[var(--color-muted)] max-w-sm mb-6">
+                  {debouncedSearch || statusFilter ? "No sessions match your filters." : "You haven't started any research yet. Kick off your first deep investigation now."}
                 </p>
+                {!debouncedSearch && !statusFilter && (
+                  <Button onClick={() => navigate("/research/new")} className="gap-2">
+                    <HistoryIcon size={16} className="hidden" /> 
+                    Start New Research
+                  </Button>
+                )}
                 {(debouncedSearch || statusFilter) && (
                   <Button 
                     className="mt-4" 

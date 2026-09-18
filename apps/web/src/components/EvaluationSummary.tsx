@@ -60,14 +60,26 @@ export function EvaluationSummary({ sessionId }: { sessionId: string }) {
           <span>Sources Used:</span>
           <span className="text-white">{qualityMetrics.numberOfSources}</span>
         </div>
+        {qualityMetrics.corroborationRate !== undefined && (
+          <div className="flex justify-between">
+            <span>Corroboration Rate:</span>
+            <span className="text-green-400">{(qualityMetrics.corroborationRate * 100).toFixed(1)}%</span>
+          </div>
+        )}
+        {qualityMetrics.singleSourceRate !== undefined && (
+          <div className="flex justify-between">
+            <span>Single-Source Rate:</span>
+            <span className="text-yellow-400">{(qualityMetrics.singleSourceRate * 100).toFixed(1)}%</span>
+          </div>
+        )}
         <div className="flex justify-between">
           <span>Contradictions:</span>
-          <span className={qualityMetrics.contradictionCount > 0 ? "text-yellow-400" : "text-white"}>
+          <span className={qualityMetrics.contradictionCount > 0 ? "text-red-400 font-medium" : "text-white"}>
             {qualityMetrics.contradictionCount}
           </span>
         </div>
         <div className="flex justify-between">
-          <span>Research Gaps:</span>
+          <span>Unresolved Gaps:</span>
           <span className="text-white">{qualityMetrics.identifiedResearchGaps}</span>
         </div>
         <div className="flex justify-between">

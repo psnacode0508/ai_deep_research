@@ -117,29 +117,37 @@ function HomePage(): React.JSX.Element {
                   
                   {/* Node 1 */}
                   <div className="relative z-10 flex flex-col items-center gap-3">
-                    <div className="w-12 h-12 rounded-full bg-[#1a1a1a] border border-white/20 flex items-center justify-center shadow-[0_0_15px_rgba(255,255,255,0.1)]">
-                      <Search size={20} className="text-white/70" />
-                    </div>
-                    <span className="text-xs font-medium text-[var(--color-muted)]">Query</span>
-                  </div>
-
-                  {/* Node 2 */}
-                  <div className="relative z-10 flex flex-col items-center gap-3">
-                    <div className="w-14 h-14 rounded-full bg-brand-900/50 border border-brand-500/50 flex items-center justify-center shadow-[0_0_20px_rgba(124,58,237,0.3)]">
-                      <Brain size={24} className="text-brand-400" />
+                    <div className="w-12 h-12 rounded-full bg-brand-900/50 border border-brand-500/50 flex items-center justify-center shadow-[0_0_20px_rgba(124,58,237,0.3)]">
+                      <Brain size={20} className="text-brand-400" />
                     </div>
                     <span className="text-xs font-medium text-brand-300">Plan</span>
                   </div>
 
+                  {/* Node 2 */}
+                  <div className="relative z-10 flex flex-col items-center gap-3">
+                    <div className="w-10 h-10 rounded-full bg-[#1a1a1a] border border-white/20 flex items-center justify-center shadow-[0_0_15px_rgba(255,255,255,0.1)]">
+                      <Search size={18} className="text-white/70" />
+                    </div>
+                    <span className="text-xs font-medium text-[var(--color-muted)]">Search</span>
+                  </div>
+
                   {/* Node 3 */}
                   <div className="relative z-10 flex flex-col items-center gap-3">
-                    <div className="w-12 h-12 rounded-full bg-[#1a1a1a] border border-white/20 flex items-center justify-center">
-                      <Globe size={20} className="text-blue-400" />
+                    <div className="w-10 h-10 rounded-full bg-[#1a1a1a] border border-white/20 flex items-center justify-center">
+                      <Globe size={18} className="text-blue-400" />
                     </div>
-                    <span className="text-xs font-medium text-[var(--color-muted)]">Crawl</span>
+                    <span className="text-xs font-medium text-[var(--color-muted)]">Read</span>
                   </div>
 
                   {/* Node 4 */}
+                  <div className="relative z-10 flex flex-col items-center gap-3">
+                    <div className="w-10 h-10 rounded-full bg-[#1a1a1a] border border-white/20 flex items-center justify-center">
+                      <Brain size={18} className="text-purple-400" />
+                    </div>
+                    <span className="text-xs font-medium text-[var(--color-muted)]">Reflect</span>
+                  </div>
+
+                  {/* Node 5 */}
                   <div className="relative z-10 flex flex-col items-center gap-3">
                     <div className="w-12 h-12 rounded-full bg-[#1a1a1a] border border-white/20 flex items-center justify-center">
                       <Shield size={20} className="text-green-400" />
@@ -147,12 +155,12 @@ function HomePage(): React.JSX.Element {
                     <span className="text-xs font-medium text-[var(--color-muted)]">Verify</span>
                   </div>
 
-                  {/* Node 5 */}
+                  {/* Node 6 */}
                   <div className="relative z-10 flex flex-col items-center gap-3">
-                    <div className="w-14 h-14 rounded-xl bg-white/5 border border-white/20 flex items-center justify-center backdrop-blur-sm">
+                    <div className="w-14 h-14 rounded-xl bg-white/5 border border-white/20 flex items-center justify-center backdrop-blur-sm shadow-[0_0_20px_rgba(255,255,255,0.1)]">
                       <FileText size={24} className="text-white" />
                     </div>
-                    <span className="text-xs font-medium text-white">Report</span>
+                    <span className="text-xs font-medium text-white">Synthesize</span>
                   </div>
                 </div>
               </div>
@@ -176,9 +184,9 @@ function HomePage(): React.JSX.Element {
                 <div className="w-12 h-12 rounded-lg bg-brand-500/10 border border-brand-500/20 flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
                   <Zap size={24} className="text-brand-400" />
                 </div>
-                <h3 className="text-xl font-semibold text-white mb-3">Multi-Agent Decomposition</h3>
+                <h3 className="text-xl font-semibold text-white mb-3">Multi-Perspective Research</h3>
                 <p className="text-[var(--color-muted)] leading-relaxed">
-                  Complex questions are broken down into parallel sub-tasks. Multiple agents explore different angles simultaneously for comprehensive coverage.
+                  Specialized roles explore different angles. Gap Researchers and Contradiction Analysts dive deep where a single perspective falls short.
                 </p>
               </div>
 
@@ -187,9 +195,9 @@ function HomePage(): React.JSX.Element {
                 <div className="w-12 h-12 rounded-lg bg-blue-500/10 border border-blue-500/20 flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
                   <CheckCircle2 size={24} className="text-blue-400" />
                 </div>
-                <h3 className="text-xl font-semibold text-white mb-3">Evidence &amp; Citation</h3>
+                <h3 className="text-xl font-semibold text-white mb-3">Evidence & Provenance</h3>
                 <p className="text-[var(--color-muted)] leading-relaxed">
-                  Every claim is backed by explicit citations. The engine extracts exact quotes and evaluates source credibility before including them in the final report.
+                  Every claim is backed by explicit citations. The engine extracts exact quotes and evaluates source credibility before inclusion.
                 </p>
               </div>
 
@@ -201,6 +209,39 @@ function HomePage(): React.JSX.Element {
                 <h3 className="text-xl font-semibold text-white mb-3">Contradiction Detection</h3>
                 <p className="text-[var(--color-muted)] leading-relaxed">
                   The reflection phase actively looks for conflicting evidence across sources, resolving disputes or clearly presenting nuanced viewpoints.
+                </p>
+              </div>
+
+              {/* Feature 4 */}
+              <div className="p-8 rounded-2xl border border-white/5 bg-[#111] hover:bg-[#151515] transition-colors group">
+                <div className="w-12 h-12 rounded-lg bg-yellow-500/10 border border-yellow-500/20 flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
+                  <Brain size={24} className="text-yellow-400" />
+                </div>
+                <h3 className="text-xl font-semibold text-white mb-3">Iterative Reflection</h3>
+                <p className="text-[var(--color-muted)] leading-relaxed">
+                  The engine reflects on its own findings, identifying missing information and dynamically generating follow-up searches to fill gaps.
+                </p>
+              </div>
+
+              {/* Feature 5 */}
+              <div className="p-8 rounded-2xl border border-white/5 bg-[#111] hover:bg-[#151515] transition-colors group">
+                <div className="w-12 h-12 rounded-lg bg-green-500/10 border border-green-500/20 flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
+                  <Lock size={24} className="text-green-400" />
+                </div>
+                <h3 className="text-xl font-semibold text-white mb-3">Human-in-the-Loop</h3>
+                <p className="text-[var(--color-muted)] leading-relaxed">
+                  You remain in control. Approve the research plan before deep crawling begins, and review the final synthesis before marking it complete.
+                </p>
+              </div>
+
+              {/* Feature 6 */}
+              <div className="p-8 rounded-2xl border border-white/5 bg-[#111] hover:bg-[#151515] transition-colors group">
+                <div className="w-12 h-12 rounded-lg bg-purple-500/10 border border-purple-500/20 flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
+                  <FileText size={24} className="text-purple-400" />
+                </div>
+                <h3 className="text-xl font-semibold text-white mb-3">Structured Cited Reports</h3>
+                <p className="text-[var(--color-muted)] leading-relaxed">
+                  Final reports clearly distinguish between corroborated facts, single-source claims, and unresolved questions, securely shareable.
                 </p>
               </div>
             </div>
