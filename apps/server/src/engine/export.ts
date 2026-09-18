@@ -103,10 +103,24 @@ export async function exportAsPDF(sessionId: string, userId: string): Promise<Bu
 
   return new Promise((resolve, reject) => {
     try {
-      const pdfDocGenerator = pdfMake.createPdf(docDefinition as any);
-      pdfDocGenerator.getBuffer((buffer: Buffer) => {
-        resolve(buffer);
+      // @ts-ignore
+      const printer = new PdfPrinter(fonts);
+      const pdfDoc = printer.createPdfKitDocument(docDefinition as any);
+      const chunks: Buffer[] = [];
+      
+      pdfDoc.on('data', (chunk: Buffer) => {
+        chunks.push(chunk);
       });
+      
+      pdfDoc.on('end', () => {
+        resolve(Buffer.concat(chunks));
+      });
+      
+      pdfDoc.on('error', (err: any) => {
+        reject(err);
+      });
+      
+      pdfDoc.end();
     } catch (e) {
       reject(e);
     }
