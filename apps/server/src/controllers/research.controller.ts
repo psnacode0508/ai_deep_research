@@ -172,11 +172,36 @@ export async function listResearchSessions(req: Request, res: Response): Promise
       return;
     }
 
-    const { data: sessions, error } = await supabaseAdmin
+    // Extract query parameters
+    const page = Math.max(1, parseInt(req.query.page as string) || 1);
+    const limit = Math.min(50, Math.max(1, parseInt(req.query.limit as string) || 20)); // Max 50 per page
+    const search = req.query.search as string;
+    const status = req.query.status as string;
+    const sortDir = (req.query.sortDir as string)?.toLowerCase() === "asc" ? "asc" : "desc";
+
+    const from = (page - 1) * limit;
+    const to = from + limit - 1;
+
+    // Start building query
+    let query = supabaseAdmin
       .from("research_sessions")
-      .select("*")
-      .eq("user_id", user.id)
-      .order("created_at", { ascending: false });
+      .select("*, research_reports(id, created_at)", { count: 'exact' })
+      .eq("user_id", user.id);
+
+    // Apply filters safely
+    if (status) {
+      query = query.eq("status", status);
+    }
+    if (search) {
+      query = query.or(`title.ilike.%${search}%,question.ilike.%${search}%`);
+    }
+
+    // Apply sorting and pagination
+    query = query
+      .order("created_at", { ascending: sortDir === "asc" })
+      .range(from, to);
+
+    const { data: sessions, error, count } = await query;
 
     if (error) {
       console.error("[ResearchController] Error listing sessions:", error);
@@ -184,7 +209,16 @@ export async function listResearchSessions(req: Request, res: Response): Promise
       return;
     }
 
-    res.status(200).json({ success: true, data: sessions });
+    res.status(200).json({ 
+      success: true, 
+      data: sessions,
+      meta: {
+        total: count || 0,
+        page,
+        limit,
+        totalPages: count ? Math.ceil(count / limit) : 0
+      }
+    });
   } catch (error) {
     console.error("[ResearchController] Unexpected error:", error);
     res.status(500).json({ success: false, error: { code: "INTERNAL_ERROR", message: "Unexpected error" } });
