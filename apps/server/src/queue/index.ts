@@ -2,7 +2,7 @@ import { Queue } from "bullmq";
 import Redis from "ioredis";
 import { config } from "../config/env";
 
-const connection = new Redis(config.redis.url, {
+export const connection = new Redis(config.redis.url, {
   maxRetriesPerRequest: null,
 });
 

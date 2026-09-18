@@ -5,19 +5,18 @@
 DeepResearch answers complex research questions through a systematic multi-agent pipeline:
 web search → evidence extraction → source evaluation → contradiction detection → reflection → citation-backed report.
 
-> ⚠️ **Milestone 0** — This repository currently contains the project foundation only.
-> The research engine, authentication, database, and real-time features are planned for future milestones.
-
 ---
 
 ## Architecture Overview
 
 ```
-Frontend (React/Vite)  →  Backend (Node/Express)  →  Research Engine (LangGraph.js)
-                                   ↓                          ↓
-                            Supabase (DB/Auth)          Gemini + Tavily
-                                   ↓
-                         Redis + BullMQ (jobs)
+Frontend (Vercel / React / Vite)  →  Backend API (Render / Node.js)  →  Research Engine (LangGraph.js)
+                                            ↓                                 ↓
+                                      Supabase (DB/Auth)               Gemini + Tavily
+                                            ↓
+                                  Redis + BullMQ (jobs)
+                                            ↓
+                                Backend Worker (Render / Node.js)
 ```
 
 See [ARCHITECTURE.md](./ARCHITECTURE.md) for the full system design.
@@ -45,16 +44,16 @@ See [ARCHITECTURE.md](./ARCHITECTURE.md) for the full system design.
 | TypeScript  | 5.4     |
 | Helmet      | 7       |
 
-### AI / Research (Planned)
+### AI / Research
 - **LangGraph.js** — multi-agent orchestration
 - **Gemini API** — LLM reasoning and synthesis
 - **Tavily API** — real-time web search
 
-### Database / Auth (Planned)
+### Database / Auth
 - **Supabase** — PostgreSQL + Auth
 
-### Background Jobs (Planned)
-- **Redis + BullMQ**
+### Background Jobs
+- **Redis + BullMQ** — decoupled reliable queue system
 
 ---
 
@@ -64,6 +63,7 @@ See [ARCHITECTURE.md](./ARCHITECTURE.md) for the full system design.
 
 - Node.js **18+**
 - npm **9+**
+- Redis Server (local or Docker: `docker run -p 6379:6379 -d redis`)
 
 ### 1. Clone the repository
 
@@ -75,8 +75,8 @@ cd ai_deep_research
 ### 2. Configure environment variables
 
 ```bash
-cp .env.example apps/server/.env
-# Edit apps/server/.env and fill in your values
+cp .env.example .env
+# Edit .env and fill in your actual API keys, Supabase URLs, and Redis configurations.
 ```
 
 ### 3. Install all dependencies
@@ -105,25 +105,36 @@ npm run dev:web
 
 ---
 
-## Environment Variables
+## Deployment & Production Configuration
 
-Copy `.env.example` to `apps/server/.env` (backend) and to `apps/web/.env` (frontend). Ensure Redis is running locally (e.g. `docker run -p 6379:6379 -d redis`).
+The application is deployed across several managed services for scale and reliability:
 
-| Variable                   | Where    | Description                              |
-|----------------------------|----------|------------------------------------------|
-| `PORT`                     | Server   | Express server port (default: 4000)      |
-| `NODE_ENV`                 | Server   | `development` or `production`            |
-| `FRONTEND_URL`             | Server   | CORS allowed origin                      |
-| `SUPABASE_URL`             | Server   | Supabase project URL                     |
-| `SUPABASE_SERVICE_ROLE_KEY`| Server   | Supabase service-role key (secret)       |
-| `DATABASE_URL`             | Server   | PostgreSQL connection string             |
-| `GEMINI_API_KEY`           | Server   | Google Gemini API key                    |
-| `GEMINI_MODEL`             | Server   | Gemini model name (e.g. `gemini-2.0-flash`) |
-| `TAVILY_API_KEY`           | Server   | Tavily Search API key                    |
-| `REDIS_URL`                | Server   | Redis connection URL (default: redis://localhost:6379) |
-| `VITE_SUPABASE_URL`        | Frontend | Supabase project URL (public)            |
-| `VITE_SUPABASE_ANON_KEY`   | Frontend | Supabase anon key (public)               |
-| `VITE_API_URL`             | Frontend | Backend API base URL                     |
+### 1. Supabase (Database & Auth)
+- Run migrations located in `supabase/migrations/` sequentially.
+- Secure the `SUPABASE_SERVICE_ROLE_KEY` (never expose it to the client).
+
+### 2. Redis (Production)
+- Deploy a managed Redis instance (e.g., Aiven, Upstash, Render Redis).
+- Expose the URL to the Render Backend API and Render Worker.
+
+### 3. Render (Backend API)
+- **Environment**: Node.js
+- **Build Command**: `npm install && npm run build --workspaces`
+- **Start Command**: `cd apps/server && npm run start`
+- **Required Env Vars**: `NODE_ENV=production`, `PORT`, `FRONTEND_URL` (CORS), `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `DATABASE_URL`, `GEMINI_API_KEY`, `TAVILY_API_KEY`, `REDIS_URL`, `RATE_LIMIT_WINDOW_MS`, `RATE_LIMIT_MAX_REQUESTS`
+- **Post-Deployment**: Check `https://<your-render-url>/health` to ensure `api`, `database`, and `redis` are all "ok".
+
+### 4. Render (Backend Worker)
+- **Environment**: Node.js Background Worker
+- **Build Command**: `npm install && npm run build --workspaces`
+- **Start Command**: `cd apps/server && node dist/worker.js`
+- **Required Env Vars**: Same as Backend API (excluding `PORT` and `FRONTEND_URL`).
+
+### 5. Vercel (Frontend Web)
+- **Environment**: React / Vite
+- **Build Command**: `npm run build:web`
+- **Output Directory**: `apps/web/dist`
+- **Required Env Vars**: `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`, `VITE_API_URL` (pointing to the Render Backend API).
 
 ---
 
@@ -138,85 +149,9 @@ From the repository root:
 | `cd apps/server && npm run worker` | Start the background research worker |
 | `npm run build:web`   | Build frontend for production        |
 | `npm run build:server`| Compile backend TypeScript           |
+| `npm run build`       | Build workspaces globally            |
 | `npm run type-check`  | Type-check all packages              |
-
----
-
-## Project Structure
-
-```
-ai_deep_research/
-├── apps/
-│   ├── web/            # React + Vite frontend
-│   │   ├── src/
-│   │   │   ├── components/   # Reusable UI components
-│   │   │   ├── layouts/      # Layout shells
-│   │   │   ├── pages/        # Page-level components
-│   │   │   ├── hooks/        # Custom React hooks
-│   │   │   ├── lib/          # Utilities
-│   │   │   └── types/        # Frontend-specific types
-│   │   └── ...
-│   └── server/         # Node.js + Express backend
-│       └── src/
-│           ├── config/       # Environment config
-│           ├── controllers/  # HTTP handlers
-│           ├── routes/       # Route definitions
-│           ├── services/     # Business logic
-│           ├── middleware/   # Express middleware
-│           ├── engine/       # Research engine boundary
-│           ├── db/           # Database boundary
-│           └── jobs/         # Background jobs boundary
-├── packages/
-│   └── shared/         # Shared TypeScript types
-├── docs/
-├── .env.example
-├── ARCHITECTURE.md
-└── README.md
-```
-
----
-
-## Implementation Status
-
-| Feature                      | Status       |
-|------------------------------|--------------|
-| Project structure / monorepo | ✅ Complete   |
-| Shared TypeScript types      | ✅ Complete   |
-| Express server + health API  | ✅ Complete   |
-| Frontend shell               | ✅ Complete   |
-| Tailwind + Framer Motion     | ✅ Complete   |
-| Architecture documentation   | ✅ Complete   |
-| Authentication               | 🔲 Planned    |
-| Database schema              | 🔲 Planned    |
-| Research engine              | 🔲 Planned    |
-| Web search (Tavily)          | 🔲 Planned    |
-| LangGraph.js agents          | 🔲 Planned    |
-| Background jobs (BullMQ)     | 🔲 Planned    |
-| Real-time progress (SSE)     | 🔲 Planned    |
-| Report generation            | 🔲 Planned    |
-| Export (PDF/DOCX)            | 🔲 Planned    |
-| Deployment                   | 🔲 Planned    |
-
----
-
-## Roadmap
-
-- **Milestone 0** ✅ — Project foundation
-- **Milestone 1** — Authentication (Supabase Auth + protected routes)
-- **Milestone 2** — Database schema + session persistence
-- **Milestone 3** — Research engine v1 (Gemini + Tavily, basic pipeline)
-- **Milestone 4** — Multi-agent pipeline (LangGraph.js, parallel research, reflection)
-- **Milestone 5** — Background jobs + SSE progress streaming
-- **Milestone 6** — Report synthesis + citation validation
-- **Milestone 7** — Export (PDF/DOCX/Markdown)
-- **Milestone 8** — Deployment (Vercel + Render + Supabase)
-
----
-
-## Contributing
-
-This is currently a solo project under active development.
-Contribution guidelines will be added when the project reaches a stable milestone.
+| `npm run test`        | Run Vitest test suites               |
 
 ---
 
