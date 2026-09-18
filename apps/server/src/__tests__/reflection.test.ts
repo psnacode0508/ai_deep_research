@@ -16,7 +16,19 @@ vi.mock('../engine/db', () => ({
   ]),
   saveSessionReport: vi.fn(),
   saveContradiction: vi.fn().mockResolvedValue({ id: 'con-1' }),
-  saveFollowUpTasks: vi.fn().mockResolvedValue([{ id: '2' }])
+  saveFollowUpTasks: vi.fn().mockResolvedValue([{ id: '2' }]),
+  recordEvent: vi.fn(),
+}));
+
+vi.mock('../db/supabase', () => ({
+  supabaseAdmin: {
+    from: vi.fn().mockReturnThis(),
+    select: vi.fn().mockReturnThis(),
+    eq: vi.fn().mockReturnThis(),
+    order: vi.fn().mockReturnThis(),
+    single: vi.fn().mockResolvedValue({ data: { user_id: 'test-user' } }),
+    upsert: vi.fn().mockReturnThis()
+  }
 }));
 
 // Mock LLM

@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { ArrowLeft, Clock, Settings, Brain, Search, XCircle, Play, ListTodo, StopCircle } from "lucide-react";
+import { ArrowLeft, Clock, Settings, Brain, Search, XCircle, Play, ListTodo, StopCircle, Download } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
@@ -222,6 +222,34 @@ function ResearchWorkspacePage(): React.JSX.Element {
   const gapsCount = events.filter(e => e.type === 'reflection.gap_identified').reduce((sum, e) => sum + ((e.payload as any)?.queries?.length || 1), 0);
   const contradictionsCount = events.filter(e => e.type === 'evaluation.contradiction_detected').length;
 
+  const handleExport = async (format: 'markdown' | 'pdf' | 'docx') => {
+    try {
+      const { data: { session: authSession } } = await supabase.auth.getSession();
+      if (!authSession) return;
+      
+      const res = await fetch(`${API_URL}/api/v1/research/${id}/export/${format}`, {
+        headers: { Authorization: `Bearer ${authSession.access_token}` },
+      });
+      
+      if (!res.ok) {
+        throw new Error("Export failed");
+      }
+      
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `research_report_${id}.${format === 'markdown' ? 'md' : format}`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      a.remove();
+    } catch (err) {
+      console.error("Export error", err);
+      alert("Failed to export report");
+    }
+  };
+
   return (
     <div className="flex flex-col h-full overflow-hidden">
       {/* Header */}
@@ -248,6 +276,20 @@ function ResearchWorkspacePage(): React.JSX.Element {
             <Settings size={14} />
             Config
           </Button>
+          
+          {session.status === ResearchStatus.Complete && (
+            <div className="flex gap-2 mr-2">
+              <Button onClick={() => handleExport('markdown')} variant="outline" size="sm" className="h-8 text-xs gap-1">
+                <Download size={14} /> MD
+              </Button>
+              <Button onClick={() => handleExport('pdf')} variant="outline" size="sm" className="h-8 text-xs gap-1">
+                <Download size={14} /> PDF
+              </Button>
+              <Button onClick={() => handleExport('docx')} variant="outline" size="sm" className="h-8 text-xs gap-1">
+                <Download size={14} /> DOCX
+              </Button>
+            </div>
+          )}
           {(session.status !== ResearchStatus.Complete && session.status !== ResearchStatus.Failed && session.status !== ResearchStatus.Cancelled) && (
             <Button variant="destructive" size="sm" className="h-8 text-xs" onClick={handleCancel}>
               <StopCircle size={14} className="mr-2"/> Cancel Engine

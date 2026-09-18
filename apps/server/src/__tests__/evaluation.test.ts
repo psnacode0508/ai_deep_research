@@ -5,14 +5,17 @@ import { vi, describe, it, expect, afterEach } from "vitest";
 vi.mock("../config/env", () => ({
   config: {
     supabase: { url: "http://localhost", serviceRoleKey: "key" },
-    gemini: { apiKey: "key", model: "model" },
-    tavily: { apiKey: "key" }
+    gemini: { apiKey: "key", model: "model", inputCostPerMillion: 0.5, outputCostPerMillion: 0.5 },
+    tavily: { apiKey: "key", costPerSearch: 0 }
   }
 }));
 
 vi.mock("../db/supabase", () => ({
   supabaseAdmin: {
-    from: vi.fn()
+    from: vi.fn(),
+    upsert: vi.fn().mockReturnThis(),
+    select: vi.fn().mockReturnThis(),
+    single: vi.fn()
   }
 }));
 
@@ -42,7 +45,8 @@ describe("Evaluation Service", () => {
         eq: mockEq,
         order: mockOrder,
         single: mockSingle,
-        insert: mockInsert
+        insert: mockInsert,
+        upsert: mockInsert
       };
 
       mockEq.mockImplementation((field, val) => {

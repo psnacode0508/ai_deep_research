@@ -12,7 +12,10 @@ import {
   approveReport,
   rejectReport,
   attachSource,
-  getEvaluation
+  getEvaluation,
+  exportMarkdown,
+  exportPDF,
+  exportDOCX
 } from "../controllers/research.controller";
 import multer from "multer";
 
@@ -38,5 +41,9 @@ router.post("/:id/report/approve", approveReport);
 router.post("/:id/report/reject", rejectReport);
 router.post("/:id/sources", upload.single("file"), attachSource);
 router.delete("/:id", deleteResearchSession);
+
+router.get("/:id/export/markdown", exportMarkdown);
+router.get("/:id/export/pdf", exportPDF);
+router.get("/:id/export/docx", exportDOCX);
 
 export default router;

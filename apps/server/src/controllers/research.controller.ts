@@ -3,6 +3,7 @@ import { supabaseAdmin } from "../db/supabase";
 import { ResearchEngine } from "../engine";
 import { CreateResearchRequest, ResearchDepth, ResearchStatus } from "@deepresearch/shared";
 import { enqueueResearchJob, resumeResearchJob } from "../queue";
+import { exportAsMarkdown, exportAsPDF, exportAsDOCX } from "../engine/export";
 
 /**
  * Creates a new research session.
@@ -505,5 +506,83 @@ export async function attachSource(req: Request, res: Response): Promise<void> {
   } catch (error: any) {
     console.error("[ResearchController] Error attaching source:", error);
     res.status(500).json({ success: false, error: { code: "INTERNAL_ERROR", message: error.message || "Failed to attach source" } });
+  }
+}
+
+/**
+ * Export report as Markdown
+ * GET /api/v1/research/:id/export/markdown
+ */
+export async function exportMarkdown(req: Request, res: Response): Promise<void> {
+  try {
+    const user = req.user;
+    if (!user) {
+      res.status(401).json({ success: false, error: { code: "UNAUTHORIZED", message: "User not authenticated" } });
+      return;
+    }
+
+    const { id } = req.params;
+    const md = await exportAsMarkdown(id, user.id);
+    
+    res.setHeader("Content-Type", "text/markdown");
+    res.setHeader("Content-Disposition", `attachment; filename="research_report_${id}.md"`);
+    res.status(200).send(md);
+  } catch (error: any) {
+    console.error("[ResearchController] Export MD error:", error);
+    if (error.message.includes("not found")) res.status(404).json({ success: false, error: { message: error.message } });
+    else if (error.message.includes("not finalized")) res.status(400).json({ success: false, error: { message: error.message } });
+    else res.status(500).json({ success: false, error: { message: "Failed to export report" } });
+  }
+}
+
+/**
+ * Export report as PDF
+ * GET /api/v1/research/:id/export/pdf
+ */
+export async function exportPDF(req: Request, res: Response): Promise<void> {
+  try {
+    const user = req.user;
+    if (!user) {
+      res.status(401).json({ success: false, error: { code: "UNAUTHORIZED", message: "User not authenticated" } });
+      return;
+    }
+
+    const { id } = req.params;
+    const pdfBuffer = await exportAsPDF(id, user.id);
+    
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader("Content-Disposition", `attachment; filename="research_report_${id}.pdf"`);
+    res.status(200).send(pdfBuffer);
+  } catch (error: any) {
+    console.error("[ResearchController] Export PDF error:", error);
+    if (error.message.includes("not found")) res.status(404).json({ success: false, error: { message: error.message } });
+    else if (error.message.includes("not finalized")) res.status(400).json({ success: false, error: { message: error.message } });
+    else res.status(500).json({ success: false, error: { message: "Failed to export report" } });
+  }
+}
+
+/**
+ * Export report as DOCX
+ * GET /api/v1/research/:id/export/docx
+ */
+export async function exportDOCX(req: Request, res: Response): Promise<void> {
+  try {
+    const user = req.user;
+    if (!user) {
+      res.status(401).json({ success: false, error: { code: "UNAUTHORIZED", message: "User not authenticated" } });
+      return;
+    }
+
+    const { id } = req.params;
+    const docxBuffer = await exportAsDOCX(id, user.id);
+    
+    res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.wordprocessingml.document");
+    res.setHeader("Content-Disposition", `attachment; filename="research_report_${id}.docx"`);
+    res.status(200).send(docxBuffer);
+  } catch (error: any) {
+    console.error("[ResearchController] Export DOCX error:", error);
+    if (error.message.includes("not found")) res.status(404).json({ success: false, error: { message: error.message } });
+    else if (error.message.includes("not finalized")) res.status(400).json({ success: false, error: { message: error.message } });
+    else res.status(500).json({ success: false, error: { message: "Failed to export report" } });
   }
 }

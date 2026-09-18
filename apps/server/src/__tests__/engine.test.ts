@@ -3,6 +3,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 vi.mock('../engine/db', () => ({
   updateSessionStatus: vi.fn(),
   saveResearchPlan: vi.fn().mockResolvedValue({ tasks: [{ id: '1' }] }),
+  saveFollowUpTasks: vi.fn().mockResolvedValue([{ id: '2' }]),
   getSessionTasks: vi.fn().mockResolvedValue([{ id: '1', query: 'test query' }]),
   updateTaskStatus: vi.fn(),
   saveSource: vi.fn().mockResolvedValue({ id: 'src-1' }),
@@ -14,6 +15,18 @@ vi.mock('../engine/db', () => ({
   ]),
   getSessionClaims: vi.fn().mockResolvedValue([{ id: 'cl-1', content: 'test claim', source_id: 'source-1', source: { url: 'http://test.com' } }]),
   saveSessionReport: vi.fn(),
+  recordEvent: vi.fn(),
+}));
+
+vi.mock('../db/supabase', () => ({
+  supabaseAdmin: {
+    from: vi.fn().mockReturnThis(),
+    select: vi.fn().mockReturnThis(),
+    eq: vi.fn().mockReturnThis(),
+    order: vi.fn().mockReturnThis(),
+    single: vi.fn().mockResolvedValue({ data: { user_id: 'test-user' } }),
+    upsert: vi.fn().mockReturnThis()
+  }
 }));
 
 // Mock LLM
@@ -61,8 +74,8 @@ vi.mock('@tavily/core', () => ({
 // Mock Env
 vi.mock('../config/env', () => ({
   config: {
-    gemini: { apiKey: 'test', model: 'test-model' },
-    tavily: { apiKey: 'test' },
+    gemini: { apiKey: 'test', model: 'test-model', inputCostPerM: 0.5 },
+    tavily: { apiKey: 'test', costPerSearch: 0 },
     supabase: { url: 'http://test', serviceRoleKey: 'test', databaseUrl: '' }
   }
 }));
