@@ -56,7 +56,8 @@ export async function saveResearchPlan(sessionId: string, tasks: any[]) {
     plan_id: plan.id,
     query: t.query || t.research_question || t.objective,
     task_index: i,
-    status: 'pending'
+    status: 'pending',
+    role: t.role || "Primary Researcher"
   }));
   
   const { data: savedTasks, error: tasksError } = await supabaseAdmin
@@ -186,7 +187,7 @@ export async function getSessionSources(sessionId: string) {
   return data;
 }
 
-export async function saveClaim(sessionId: string, evidenceId: string, sourceId: string, content: string, confidence: number) {
+export async function saveClaim(sessionId: string, evidenceId: string, sourceId: string, content: string, confidence: number, metadata?: any) {
   const { data, error } = await supabaseAdmin
     .from("claims")
     .insert({
@@ -194,7 +195,8 @@ export async function saveClaim(sessionId: string, evidenceId: string, sourceId:
       evidence_id: evidenceId,
       source_id: sourceId,
       content,
-      confidence
+      confidence,
+      metadata: metadata || null
     })
     .select()
     .single();
@@ -255,7 +257,7 @@ export async function saveContradiction(sessionId: string, claimAId: string, cla
   return data;
 }
 
-export async function saveFollowUpTasks(sessionId: string, queries: string[]) {
+export async function saveFollowUpTasks(sessionId: string, queries: { query: string, role?: string }[]) {
   // First, get the plan ID for this session
   const { data: plan, error: planError } = await supabaseAdmin
     .from("research_plans")
@@ -265,13 +267,14 @@ export async function saveFollowUpTasks(sessionId: string, queries: string[]) {
     
   if (planError || !plan) throw new Error(`Failed to find plan for follow-up: ${planError?.message}`);
   
-  const taskRows = queries.map((query, i) => ({
+  const taskRows = queries.map((q, i) => ({
     session_id: sessionId,
     plan_id: plan.id,
-    query,
+    query: q.query,
     task_index: 100 + i, // Arbitrary high index for follow-ups
     status: 'pending',
-    is_followup: true
+    is_followup: true,
+    role: q.role || "Gap Researcher"
   }));
   
   const { data, error } = await supabaseAdmin

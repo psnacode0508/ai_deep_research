@@ -201,7 +201,12 @@ export type ResearchEventType =
   | "synthesis.started"
   | "synthesis.completed"
   | "session.completed"
-  | "session.failed";
+  | "session.failed"
+  // M16 Advanced Research Events
+  | "role.assigned"
+  | "evidence.reviewed"
+  | "gap.analyzed"
+  | "contradiction.analyzed";
 
 /**
  * A single event emitted during a research session.
@@ -273,6 +278,9 @@ export interface QualityMetrics {
   unresolvedContradictionCount: number;
   identifiedResearchGaps: number;
   followUpIterationCount: number;
+  // M16 additions
+  corroborationRate?: number;
+  singleSourceRate?: number;
 }
 
 export interface SourceQualityMetrics {

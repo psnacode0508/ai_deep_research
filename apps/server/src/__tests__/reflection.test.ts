@@ -52,6 +52,13 @@ vi.mock('@langchain/google-genai', () => {
             }))
           };
         }
+        if (config.name === "EvidenceReview") {
+          return {
+            invoke: vi.fn().mockResolvedValue({
+              reviews: [{ claim_id: 'cl-1', is_credible: true, quality_rationale: 'Looks good' }]
+            })
+          };
+        }
         return {
           invoke: vi.fn().mockResolvedValue({
             tasks: [{ objective: 'Test', query: 'test query' }],

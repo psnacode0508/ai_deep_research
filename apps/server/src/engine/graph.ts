@@ -75,8 +75,14 @@ Respond with a JSON structure containing 'tasks'.`;
 
     const result = await structuredLlm.invoke(prompt);
     
-    const saved = await db.saveResearchPlan(state.sessionId, result.tasks);
+    // Assign "Primary Researcher" role to initial tasks
+    const tasksWithRoles = result.tasks.map(t => ({ ...t, role: "Primary Researcher" }));
     
+    const saved = await db.saveResearchPlan(state.sessionId, tasksWithRoles);
+    
+    // Record trace event
+    await db.recordEvent(state.sessionId, "role.assigned", "Assigned Primary Researcher role to initial tasks");
+
     if (state.metadata.requirePlanApproval) {
       await db.updateSessionStatus(state.sessionId, ResearchStatus.AwaitingPlanApproval);
     }
@@ -109,7 +115,7 @@ async function executeSearch(state: ResearchState) {
           searchDepth: state.depth === 'deep' ? 'advanced' : 'basic',
           includeAnswer: false,
           includeRawContent: false,
-          maxResults: 3
+          maxResults: task.role === "Contradiction Analyst" ? 5 : 3 // Get more sources if we're resolving contradictions
         });
         
         const savedSources = [];
@@ -125,7 +131,8 @@ async function executeSearch(state: ResearchState) {
               domain,
               excerpt: res.content,
               full_content: res.content,
-              relevance_score: res.score
+              relevance_score: res.score,
+              metadata: { role: task.role, publishedDate: res.publishedDate || undefined }
             });
             savedSources.push(saved);
           } catch (e) {
@@ -209,12 +216,13 @@ Only extract information explicitly stated in the text. If page numbers (e.g. '-
 async function reflectOnEvidence(state: ResearchState) {
   try {
     await db.updateSessionStatus(state.sessionId, ResearchStatus.Reflecting);
+    await db.recordEvent(state.sessionId, "gap.analyzed", "Analyzing gaps and assigning roles");
     
     const allClaims = await db.getSessionClaims(state.sessionId);
     if (!allClaims || allClaims.length === 0) {
       return {
         isSufficient: false,
-        gaps: [{ description: "No claims extracted yet", suggestedQuery: state.question, priority: "high", reason: "Zero evidence" }]
+        gaps: [{ description: "No claims extracted yet", suggestedQuery: state.question, priority: "high", reason: "Zero evidence", role: "Primary Researcher" }]
       };
     }
     
@@ -225,6 +233,10 @@ async function reflectOnEvidence(state: ResearchState) {
       missing_evidence: z.array(z.string()).describe("List of missing crucial information"),
       weak_claims: z.array(z.string()).describe("Claims that lack strong support"),
       is_sufficient: z.boolean().describe("True if the evidence is sufficient to generate a final report"),
+      corroborations: z.array(z.object({
+        base_claim_id: z.string(),
+        corroborating_claim_ids: z.array(z.string())
+      })).describe("Group claim IDs that assert the exact same fact"),
       gaps: z.array(z.object({
         description: z.string(),
         priority: z.enum(["low", "medium", "high"]),
@@ -248,31 +260,62 @@ ${claimsText}
 
 1. Identify if the evidence is sufficient to answer the question comprehensively.
 2. Identify any explicit gaps and suggest targeted follow-up search queries.
-3. Identify any direct contradictions between the claims (use their ID exactly as provided). Remember that differences in date, region, or context are not necessarily contradictions unless they claim the same exact fact for the same context.`;
+3. Identify any direct contradictions between the claims (use their ID exactly as provided).
+4. Identify corroborations (claims that support the exact same fact). Group them under a base claim ID.`;
 
     const result = await structuredLlm.invoke(prompt);
     
     // Save contradictions
     const savedContradictions = [];
-    if (result.contradictions) {
+    if (result.contradictions && result.contradictions.length > 0) {
       for (const c of result.contradictions) {
-        // Find if claim IDs exist to avoid foreign key errors in case LLM hallucinates IDs
         if (allClaims.find((x:any) => x.id === c.claimA_id) && allClaims.find((x:any) => x.id === c.claimB_id)) {
            const sc = await db.saveContradiction(state.sessionId, c.claimA_id, c.claimB_id, c.description, c.severity);
            savedContradictions.push(sc);
+        }
+      }
+      await db.recordEvent(state.sessionId, "contradiction.analyzed", `Detected ${result.contradictions.length} contradictions, assigning Contradiction Analyst`);
+    }
+
+    // Process corroborations by updating claim metadata
+    if (result.corroborations) {
+      for (const corr of result.corroborations) {
+        if (allClaims.find((x:any) => x.id === corr.base_claim_id)) {
+           const { error } = await supabaseAdmin.from("claims").update({
+             metadata: { corroborating_ids: corr.corroborating_claim_ids }
+           }).eq("id", corr.base_claim_id);
         }
       }
     }
     
     const newIteration = state.iteration + 1;
     
-    // If not sufficient and within limits, schedule follow-ups
     const maxIterations = state.metadata.maxIterations || 3;
     let isActuallySufficient = result.is_sufficient;
     
-    if (!isActuallySufficient && newIteration < maxIterations && result.gaps.length > 0) {
-      const queries = result.gaps.map(g => g.suggested_query).slice(0, 3); // Max 3 follow-ups
-      await db.saveFollowUpTasks(state.sessionId, queries);
+    if (!isActuallySufficient && newIteration < maxIterations) {
+      // Build role-based tasks based on gaps and contradictions
+      const tasksToSchedule: { query: string, role?: string }[] = [];
+      
+      // Schedule gap researchers
+      if (result.gaps) {
+        for (const gap of result.gaps.slice(0, 3)) {
+          tasksToSchedule.push({ query: gap.suggested_query, role: "Gap Researcher" });
+        }
+      }
+
+      // Schedule contradiction analysts if we have unresolved contradictions
+      if (result.contradictions) {
+        for (const c of result.contradictions.slice(0, 1)) {
+          tasksToSchedule.push({ query: `Resolve contradiction: ${c.description}`, role: "Contradiction Analyst" });
+        }
+      }
+
+      if (tasksToSchedule.length > 0) {
+        await db.saveFollowUpTasks(state.sessionId, tasksToSchedule);
+      } else {
+        isActuallySufficient = true;
+      }
     } else if (newIteration >= maxIterations) {
       isActuallySufficient = true; // Force completion
     }
@@ -311,43 +354,66 @@ async function synthesizeReport(state: ResearchState) {
       ? state.gaps.map((g, i) => `- ${g.description}`).join("\n")
       : "None detected.";
     
-    const prompt = `You are an expert analyst. Write a concise, comprehensive research report answering the question: "${state.question}".
+    // Fetch all claims with their source titles
+    const claims = await db.getSessionClaims(state.sessionId);
+    if (!claims || claims.length === 0) {
+       return { report: "No relevant evidence was found to answer the research question." };
+    }
     
-You MUST ONLY use the following established claims. Cite your sources inline using [Number] format corresponding to the claim index.
-Do not invent or hallucinate information.
-
-Your report MUST include these sections if applicable:
-- Established Findings
-- Conflicting Evidence (discuss the contradictions below)
-- Unresolved Questions (discuss the gaps below)
-
-Claims:
-${claimsText}
-
-Detected Contradictions:
-${contradictionsText}
-
-Unresolved Gaps:
-${gapsText}
-
-Output the report in Markdown format.`;
-
-    const result = await llm.invoke(prompt);
-    let finalReport = result.content as string;
+    // Fetch all sources for bibliography
+    const sources = await db.getSessionSources(state.sessionId);
     
-    // Append citations section
-    finalReport += "\n\n## References\n";
-    allClaims.forEach((c: any, i: number) => {
-      finalReport += `[${i+1}] ${c.source?.title || 'Source'} - ${c.source?.url}\n`;
-    });
+    const context = claims.map((c: any) => {
+      let text = `- [${c.id}] ${c.content} (Source: ${c.source?.title || 'Unknown'})`;
+      if (c.metadata?.corroborating_ids) {
+        text += `\n  - Corroborated by: ${c.metadata.corroborating_ids.join(", ")}`;
+      }
+      if (c.metadata?.reviewed) {
+        text += `\n  - Reviewer Assessment: ${c.metadata.is_credible ? "Credible" : "Questionable"} (${c.metadata.quality_rationale})`;
+      }
+      return text;
+    }).join("\n");
     
-    await db.saveSessionReport(state.sessionId, finalReport);
+    const bibliography = sources.map((s: any, i: number) => `[${i+1}] ${s.title || s.domain} - ${s.url}`).join("\n");
+    
+    const prompt = `You are an expert technical writer and researcher.
+Your task is to synthesize a final, highly structured research report answering the original question: "${state.question}".
+
+You have been provided with extracted factual claims from multiple sources. Some claims are independently corroborated, while others are from a single source or even conflicting.
+
+Extracted Claims:
+${context}
+
+Instructions:
+1. Write a comprehensive, professional Markdown report.
+2. Structure the report logically with clear headings.
+3. Explicitly include sections for:
+   - Established Findings (claims corroborated by multiple sources)
+   - Conflicting Evidence (where sources disagree)
+   - Single-Source or Unverified Findings (claims from one source, or flagged by the reviewer)
+   - Unresolved Questions / Limitations (gaps that were not filled)
+4. Cite sources inline using numbers e.g. [1], [2].
+5. At the end, include a 'References' section using exactly the provided bibliography.
+
+Bibliography:
+${bibliography}
+
+Return ONLY the markdown report.`;
+
+    const report = await llm.invoke(prompt);
+    
+    // Convert to string safely
+    const reportText = typeof report.content === 'string' ? report.content : JSON.stringify(report.content);
+    
+    await db.saveSessionReport(state.sessionId, reportText);
     
     if (state.metadata.requireFinalApproval) {
       await db.updateSessionStatus(state.sessionId, ResearchStatus.AwaitingFinalApproval);
+    } else {
+      await db.updateSessionStatus(state.sessionId, ResearchStatus.Complete);
     }
-
-    return { report: finalReport };
+    
+    return { report: reportText };
   } catch (error: any) {
     return { error: `Synthesis failed: ${error.message}` };
   }
@@ -398,7 +464,7 @@ function shouldContinueFromSearch(state: ResearchState) {
 
 function shouldContinueFromExtract(state: ResearchState) {
   if (state.error) return "fail";
-  return "reflect_on_evidence";
+  return "review_evidence";
 }
 
 function shouldContinueFromReflect(state: ResearchState) {
@@ -416,10 +482,68 @@ function shouldContinueFromSynthesis(state: ResearchState) {
   return "finalize_session";
 }
 
+/**
+ * 3.1 Evidence Review Node
+ */
+async function reviewEvidence(state: ResearchState) {
+  try {
+    // We update session status but we keep it conceptually in "Evaluating"
+    await db.updateSessionStatus(state.sessionId, ResearchStatus.Evaluating);
+    await db.recordEvent(state.sessionId, "evidence.reviewed", "Evidence Reviewer is checking claims quality");
+
+    const allClaims = await db.getSessionClaims(state.sessionId);
+    if (!allClaims || allClaims.length === 0) return { };
+
+    // Find claims that haven't been reviewed yet (no metadata.reviewed)
+    const unreviewedClaims = allClaims.filter(c => !c.metadata?.reviewed);
+    if (unreviewedClaims.length === 0) return { };
+
+    const reviewSchema = z.object({
+      reviews: z.array(z.object({
+        claim_id: z.string(),
+        is_credible: z.boolean(),
+        quality_rationale: z.string()
+      }))
+    });
+
+    const structuredLlm = llm.withStructuredOutput(reviewSchema, { name: "EvidenceReview" });
+
+    // Review in batches to avoid token limits
+    const batch = unreviewedClaims.slice(0, 10);
+    const claimsText = batch.map(c => `[ID:${c.id}] Source: ${c.source?.url}\nContent: ${c.content}`).join("\n\n");
+
+    const prompt = `You are an Evidence Reviewer. Evaluate the credibility and quality of the following extracted claims based on the source URL and content.
+    
+${claimsText}
+
+For each claim, determine if it is highly credible (true) or questionable (false) and provide a short rationale.`;
+
+    const result = await structuredLlm.invoke(prompt);
+
+    for (const review of result.reviews) {
+       const claim = batch.find(c => c.id === review.claim_id);
+       if (claim) {
+         const updatedMetadata = { ...claim.metadata, reviewed: true, is_credible: review.is_credible, quality_rationale: review.quality_rationale };
+         await supabaseAdmin.from("claims").update({ metadata: updatedMetadata }).eq("id", review.claim_id);
+       }
+    }
+
+    return { };
+  } catch (error: any) {
+    console.error("Evidence review failed:", error.message);
+    return { }; // Don't fail the whole pipeline just for review
+  }
+}
+
+// ============================================================================
+// Workflow Definition
+// ============================================================================
+
 const workflow = new StateGraph<ResearchState>({ channels: stateChannels })
   .addNode("plan_research", planResearch)
   .addNode("execute_search", executeSearch)
   .addNode("extract_evidence", extractEvidence)
+  .addNode("review_evidence", reviewEvidence)
   .addNode("reflect_on_evidence", reflectOnEvidence)
   .addNode("synthesize_report", synthesizeReport)
   .addNode("evaluate_research", evaluateResearch)
@@ -474,8 +598,19 @@ workflow.addConditionalEdges("execute_search", shouldContinueFromSearch, {
 });
 workflow.addConditionalEdges("extract_evidence", shouldContinueFromExtract, {
   fail: "fail",
+  review_evidence: "review_evidence"
+});
+
+function shouldContinueFromReview(state: ResearchState) {
+  if (state.error) return "fail";
+  return "reflect_on_evidence";
+}
+
+workflow.addConditionalEdges("review_evidence", shouldContinueFromReview, {
+  fail: "fail",
   reflect_on_evidence: "reflect_on_evidence"
 });
+
 workflow.addConditionalEdges("reflect_on_evidence", shouldContinueFromReflect, {
   fail: "fail",
   execute_search: "execute_search",

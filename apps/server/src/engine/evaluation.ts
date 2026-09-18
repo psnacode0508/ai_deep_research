@@ -49,6 +49,12 @@ export async function evaluateResearchSession(sessionId: string, userId: string)
     const citationValidity = citationCompleteness; // Deterministic validity is having a bound source
 
     const followUpTasks = safeTasks.filter(t => t.is_followup);
+    
+    // M16: Corroboration metrics
+    const claimsWithCorroboration = safeClaims.filter(c => c.metadata && c.metadata.corroborating_ids && c.metadata.corroborating_ids.length > 0).length;
+    const claimsWithSingleSource = safeClaims.length - claimsWithCorroboration;
+    const corroborationRate = safeClaims.length > 0 ? claimsWithCorroboration / safeClaims.length : 0;
+    const singleSourceRate = safeClaims.length > 0 ? claimsWithSingleSource / safeClaims.length : 0;
 
     const qualityMetrics: QualityMetrics = {
       evidenceCoverage,
@@ -61,7 +67,9 @@ export async function evaluateResearchSession(sessionId: string, userId: string)
       contradictionCount: safeContradictions.length,
       unresolvedContradictionCount: safeContradictions.filter(c => !c.resolved).length, // assuming resolved column exists or just use 0 if not
       identifiedResearchGaps: followUpTasks.length,
-      followUpIterationCount: followUpTasks.length > 0 ? 1 : 0 // simplify: 1 if any followups happened
+      followUpIterationCount: followUpTasks.length > 0 ? 1 : 0, // simplify: 1 if any followups happened
+      corroborationRate,
+      singleSourceRate
     };
 
     // --- 2. Source Quality Metrics ---
