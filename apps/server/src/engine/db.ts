@@ -111,6 +111,21 @@ export async function updateTaskStatus(taskId: string, status: string, errorMsg?
 }
 
 export async function saveSource(taskId: string | null, sessionId: string, source: any) {
+  // Deduplicate sources within a session
+  const { data: existing, error: existingError } = await supabaseAdmin
+    .from("research_sources")
+    .select()
+    .eq("session_id", sessionId)
+    .eq("url", source.url)
+    .maybeSingle();
+    
+  if (existing) {
+    if (taskId) {
+      await recordEvent(sessionId, "task.source_found", `Re-used source: ${source.title || source.domain}`, taskId, { url: source.url });
+    }
+    return existing;
+  }
+
   const { data, error } = await supabaseAdmin
     .from("research_sources")
     .insert({

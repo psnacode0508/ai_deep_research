@@ -36,6 +36,7 @@ function isPrivateIP(ip: string): boolean {
     if (parts[0] === 10) return true;
     if (parts[0] === 172 && parts[1] >= 16 && parts[1] <= 31) return true;
     if (parts[0] === 192 && parts[1] === 168) return true;
+    if (parts[0] === 169 && parts[1] === 254) return true;
     if (parts[0] === 127) return true;
     if (parts[0] === 0) return true;
   }
@@ -63,7 +64,9 @@ export function classifyDomain(domain: string): { category: string, rationale: s
   return { category: 'unknown', rationale: 'Domain does not match known deterministic categories', isPrimary: false };
 }
 
-export async function fetchUrlSecurely(targetUrl: string): Promise<IngestedSource> {
+export async function fetchUrlSecurely(targetUrl: string, maxRedirects = 5): Promise<IngestedSource> {
+  if (maxRedirects < 0) throw new Error("Too many redirects");
+
   const parsedUrl = new URL(targetUrl);
   if (parsedUrl.protocol !== "http:" && parsedUrl.protocol !== "https:") {
     throw new Error("Unsupported protocol");
@@ -81,14 +84,29 @@ export async function fetchUrlSecurely(targetUrl: string): Promise<IngestedSourc
   try {
     const response = await fetch(targetUrl, {
       signal: controller.signal as any,
-      redirect: 'follow'
+      redirect: 'manual'
     });
+
+    if (response.status >= 300 && response.status < 400 && response.headers.has('location')) {
+      const location = response.headers.get('location')!;
+      const nextUrl = new URL(location, targetUrl).toString();
+      clearTimeout(timeoutId);
+      return fetchUrlSecurely(nextUrl, maxRedirects - 1);
+    }
 
     if (!response.ok) {
       throw new Error(`HTTP Error: ${response.status}`);
     }
 
     const contentType = response.headers.get("content-type") || "";
+    const isSupported = contentType.includes("text/") || 
+                        contentType.includes("application/pdf") || 
+                        contentType.includes("application/json") ||
+                        contentType === "";
+    if (!isSupported) {
+      throw new Error("Unsupported content type");
+    }
+
     let content = "";
     
     // Size check
