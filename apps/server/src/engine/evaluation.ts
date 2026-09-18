@@ -1,6 +1,7 @@
 import { supabaseAdmin } from "../db/supabase";
 import { QualityMetrics, SourceQualityMetrics, PerformanceMetrics, UsageMetricsData, ResearchEvaluation } from "@deepresearch/shared";
 import { recordEvent } from "./db";
+import { config } from "../config/env";
 
 export async function evaluateResearchSession(sessionId: string, userId: string): Promise<ResearchEvaluation> {
   try {
@@ -124,36 +125,42 @@ export async function evaluateResearchSession(sessionId: string, userId: string)
       if (u.metric_type === "llm_input_tokens") usageMetrics.inputTokens = (usageMetrics.inputTokens || 0) + Number(u.value);
       if (u.metric_type === "llm_output_tokens") usageMetrics.outputTokens = (usageMetrics.outputTokens || 0) + Number(u.value);
       if (u.metric_type === "web_searches") usageMetrics.tavilySearches = (usageMetrics.tavilySearches || 0) + Number(u.value);
+      if (u.metric_type === "llm_requests") usageMetrics.geminiRequestCount = (usageMetrics.geminiRequestCount || 0) + Number(u.value);
     }
     
     // Very rough estimate config (configurable in reality)
-    const COST_PER_1M_INPUT = 0.50;
-    const COST_PER_1M_OUTPUT = 1.50;
-    const COST_PER_1000_SEARCHES = 5.00;
+    const COST_PER_1M_INPUT = config.gemini?.inputCostPerMillion || null;
+    const COST_PER_1M_OUTPUT = config.gemini?.outputCostPerMillion || null;
+    const COST_PER_1000_SEARCHES = config.tavily?.costPerThousand || null;
 
-    if (usageMetrics.inputTokens) {
+    if (COST_PER_1M_INPUT !== null && usageMetrics.inputTokens) {
       usageMetrics.estimatedGeminiCost = (usageMetrics.inputTokens / 1000000) * COST_PER_1M_INPUT;
     }
-    if (usageMetrics.outputTokens) {
+    if (COST_PER_1M_OUTPUT !== null && usageMetrics.outputTokens) {
       usageMetrics.estimatedGeminiCost = (usageMetrics.estimatedGeminiCost || 0) + (usageMetrics.outputTokens / 1000000) * COST_PER_1M_OUTPUT;
     }
-    if (usageMetrics.tavilySearches) {
+    if (COST_PER_1000_SEARCHES !== null && usageMetrics.tavilySearches) {
       usageMetrics.estimatedTavilyCost = (usageMetrics.tavilySearches / 1000) * COST_PER_1000_SEARCHES;
     }
     
-    usageMetrics.totalEstimatedCost = (usageMetrics.estimatedGeminiCost || 0) + (usageMetrics.estimatedTavilyCost || 0);
+    if (usageMetrics.estimatedGeminiCost !== undefined || usageMetrics.estimatedTavilyCost !== undefined) {
+      usageMetrics.totalEstimatedCost = (usageMetrics.estimatedGeminiCost || 0) + (usageMetrics.estimatedTavilyCost || 0);
+    } else {
+      usageMetrics.totalEstimatedCost = 0;
+    }
 
     // --- 5. Persist Evaluation ---
     const { data: evaluation, error: insertError } = await supabaseAdmin
       .from("research_evaluations")
-      .insert({
+      .upsert({
         session_id: sessionId,
         user_id: userId,
         quality_metrics: qualityMetrics,
         source_metrics: sourceMetrics,
         performance_metrics: performanceMetrics,
-        usage_metrics: usageMetrics
-      })
+        usage_metrics: usageMetrics,
+        created_at: new Date().toISOString()
+      }, { onConflict: "session_id" })
       .select()
       .single();
 

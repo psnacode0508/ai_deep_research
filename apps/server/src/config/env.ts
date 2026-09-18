@@ -50,10 +50,13 @@ export const config = {
   // ── AI / Research ─────────────────────────────────────
   gemini: {
     apiKey: requireEnv("GEMINI_API_KEY"),
-    model: optionalEnv("GEMINI_MODEL", "gemini-2.5-flash"),
+    model: process.env.GEMINI_MODEL || "gemini-2.5-flash",
+    inputCostPerMillion: Number(process.env.GEMINI_INPUT_COST_PER_M || "0.50"),
+    outputCostPerMillion: Number(process.env.GEMINI_OUTPUT_COST_PER_M || "1.50")
   },
   tavily: {
     apiKey: requireEnv("TAVILY_API_KEY"),
+    costPerThousand: Number(process.env.TAVILY_COST_PER_K || "5.00")
   },
 
   // ── Background Jobs ────────────────────────────────────
